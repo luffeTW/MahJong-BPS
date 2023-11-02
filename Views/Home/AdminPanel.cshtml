@@ -1,0 +1,748 @@
+﻿@*
+    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+*@
+@{
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/bulma/css/bulma.min.css">
+    <link rel="stylesheet" href="~/css/index.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/3.1.12/signalr.min.js"></script>
+
+    <title>管理後台</title>
+    <style>
+        
+    </style>
+</head>
+<body>
+    <header>
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    </header>
+    <div class="">
+        <div class="tabs">
+            <ul>
+                <li><a class="bd-notification is-info" id="hardware">硬體控制</a></li>
+                <li><a class="bd-notification is-info" id="report">營業報表</a></li>
+                <li><a href="/">回主畫面</a></li>
+            </ul>
+        </div>
+
+        <div class="block block-report big-block">
+            <div class="block">
+                <a class="subtitle is-1">報表</a>
+            </div>
+            <div class="block ">
+                <a class="subtitle is-3">本日營業額</a>
+                <div class="block ">
+                    <a class="subtitle is-3">金額</a>
+                    <a class="subtitle is-3 report-daily"></a>
+                </div>
+               
+            </div>
+            <div class="block ">
+                <a class="subtitle is-3">本月營業額</a>
+                <div class="block ">
+                    <a class="subtitle is-3">金額</a>
+                    <a class="subtitle is-3 report-monthly"></a>
+                </div>             
+            </div>
+            <div class="block ">
+                <a class="subtitle is-3">年度營業額</a>
+                <div class="block ">
+                    <a class="subtitle is-3">金額</a>
+                    <a class="subtitle is-3 report-yearly"></a>
+                </div>
+               @*  <div class="block ">
+                    <a class="subtitle is-3">時數</a>
+                </div> *@
+            </div>
+        </div>
+
+        <div class="block block-hardware big-block">
+
+            <div class="block">
+                <a class="subtitle is-1">麻將桌</a>
+            </div>
+            <div class="block">                
+                    <a class="subtitle is-5">電源控制</a>               
+                <div class="select is-success">
+                    <label>
+                        <select id="tableSelect">
+                            <option value="1">1號桌</option>
+                            <option value="2">2號桌</option>
+                            <option value="3">3號桌</option>
+                            <option value="4">4號桌</option>
+                            <option value="5">5號桌</option>
+                            <option value="6">6號桌</option>
+                            <option value="7">7號桌</option>
+                            <option value="8">8號桌</option>
+                        </select>
+                    </label>
+                </div>
+                <button value="1" class="modbus button is-primary">
+                    開啟電源
+                </button>
+                <button value="0" class="modbus button is-danger">
+                    關閉電源
+                </button>
+            </div>           
+        </div>
+        <div class="block block-hardware big-block">
+            <div class="column">
+            </div>
+        </div>
+        <div class="block block-hardware big-block">
+            <div class="block">
+                <a class="subtitle is-3">購買</a>
+                <button class="cashbox button is-primary" id="cashbox" value="C1">
+                    發送指令
+                </button>
+            </div>
+            <div class="block">
+                <div class="columns is-gapless">
+                    <div>
+                        <a class="subtitle is-3">結帳</a>
+
+                    </div>
+                    <div class="column is-2">
+                        <input class="input is-primary" id="checkoutValue" type="text" placeholder="請輸入帳單金額">
+                    </div>
+                    <div>
+                        <button class="cashbox button is-primary" id="cashbox" value="C2">
+                            發送指令
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="block">
+                <a class="subtitle is-3">取消</a>
+                <button class="cashbox button is-primary" id="cashbox" value="C3">
+                    發送指令
+                </button>
+            </div>
+            <div class="block">
+                <a class="subtitle is-3">重啟現金系統</a>
+                <button class="cashbox button is-primary" id="cashbox" value="F0">
+                    發送指令
+                </button>
+            </div>
+            <div class="block">
+                <a class="subtitle is-3">讀取錢箱</a>
+                <button class="cashbox button is-primary" id="cashbox" value="02">
+                    發送指令
+                </button>
+            </div>
+            <div class="block">
+                <a class="subtitle is-1">紙鈔機</a>
+            </div>
+            <div class="columns is-gapless">
+                <div class="column is-1">
+                    <a class="subtitle is-5">暫存器退鈔</a>
+                </div>
+                <div class="column is-2">
+                    <input class="input is-primary" id="paperValue" type="text" placeholder="請輸入退鈔金額">
+                </div>
+
+                <div class="column">
+                    <button class="cashbox button is-primary" id="cashbox" value="10">
+                        發送指令
+                    </button>
+                </div>
+            </div>
+            <div class="columns is-gapless">
+                <div class="column is-1">
+                    <a class="subtitle is-5">收鈔開啟</a>
+                </div>
+                <div>
+                    <button class="cashbox button is-primary" id="cashbox" value="04">
+                        發送指令
+                    </button>
+                </div>
+            </div>
+            <div class="columns is-gapless">
+                <div class="column is-1">
+                    <a class="subtitle is-5">收鈔關閉</a>
+                </div>
+                <div>
+                    <button class="cashbox button is-primary" id="cashbox" value="06">
+                        發送指令
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="block block-hardware big-block">
+
+            <div class="block">
+                <a class="subtitle is-1">硬幣機</a>
+            </div>
+
+            <div class="columns is-gapless">
+
+                <div class="column is-1">
+                    <a class="subtitle is-5">硬幣退幣</a>
+                </div>
+
+                <div class="column is-2">
+                    <input class="input is-primary" id="coinAmoutOut" type="text" placeholder="請輸入退幣金額">
+                </div>
+
+                <div class="column">
+                    <button class="cashbox button is-primary" id="cashbox" value="11">
+                        發送指令
+                    </button>
+                </div>
+
+            </div>
+
+            <div class="columns is-gapless">
+                <div class="column is-1">
+                    <a class="subtitle is-5">設定數量</a>
+                </div>
+                <div class="column is-1">
+                    <div class="select is-success">
+                        <label>
+                            <select id="coinUnitSet">
+                                <option value="">選擇面額</option>
+                                <option value="1">一元</option>
+                                <option value="5">五元</option>
+                                <option value="10">十元</option>
+                                <option value="50">五十元</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+                <div class="column is-2">
+                    <input class="input is-primary" id="coinAmoutSet" type="number" placeholder="請輸入硬幣數量">
+                </div>
+                <div class="column">
+                    <button class="cashbox button is-primary" id="cashbox" value="08">
+                        發送指令
+                    </button>
+                </div>
+            </div>
+
+            <div class="columns is-gapless">
+                <div class="column is-1">
+                    <a class="subtitle is-5">投幣開啟</a>
+                </div>
+                <div>
+                    <button class="cashbox button is-primary" id="cashbox" value="03">
+                        發送指令
+                    </button>
+                </div>
+            </div>
+
+            <div class="columns is-gapless">
+                <div class="column is-1">
+                    <a class="subtitle is-5">投幣關閉</a>
+                </div>
+                <div>
+                    <button class="cashbox button is-primary" id="cashbox" value="05">
+                        發送指令
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="block block-hardware big-block">
+
+            <div class="block">
+                <a class="subtitle is-1">出鈔機</a>
+            </div>
+
+            <div class="columns is-gapless">
+                <div class="column is-1">
+                    <a class="subtitle is-5">出鈔機出鈔</a>
+                </div>
+                <div class="column is-2">
+                    <input class="input is-primary" id="xc100Value" type="text" placeholder="請輸入出鈔金額">
+                </div>
+                <div>
+                    <button class="cashbox button is-primary" id="cashbox" value="B">
+                        發送指令
+                    </button>
+                </div>
+            </div>
+
+            <div class="columns is-gapless">
+                <div class="column is-1">
+                    <a class="subtitle is-5">設定數量</a>
+                </div>
+                <div class="column is-2">
+                    <input class="input is-primary" id="xc100Stock" type="text" placeholder="請輸入出鈔機內目前鈔票數量">
+                </div>
+                <div>
+                    <button class="cashbox button is-primary" id="cashbox" value="S1">
+                        發送指令
+                    </button>
+                </div>
+            </div>
+            <div class="columns is-gapless">
+                <div class="column is-1">
+                    <a class="subtitle is-5">查詢剩餘鈔票數量</a>
+                </div>
+
+                <div>
+                    <button class="cashbox button is-primary" id="cashbox" value="S2">
+                        發送指令
+                    </button>
+                </div>
+            </div>
+            <div class="columns is-gapless">
+                <div class="column is-1">
+                    <a class="subtitle is-5">清除錯誤訊息</a>
+                </div>
+
+                <div>
+                    <button class="cashbox button is-primary" id="cashbox" value="I2">
+                        發送指令
+                    </button>
+                </div>
+            </div>
+            <div class="columns is-gapless">
+                <div class="column is-1">
+                    <a class="subtitle is-5">讀取出鈔數量</a>
+                </div>
+
+                <div>
+                    <button class="cashbox button is-primary" id="cashbox" value="C">
+                        發送指令
+                    </button>
+                </div>
+            </div>
+            <div class="columns is-gapless">
+                <div class="column is-1">
+                    <a class="subtitle is-5">清除出鈔紀錄</a>
+                </div>
+
+                <div>
+                    <button class="cashbox button is-primary" id="cashbox" value="I1">
+                        發送指令
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="block block-hardware big-block">
+
+            <div class="block">
+                <a class="subtitle is-1">出幣機</a>
+            </div>
+
+            <div class="columns is-gapless">
+                <div class="column is-1">
+                    <a class="subtitle is-5">出幣機出幣</a>
+                </div>
+                <div class="column is-2">
+                    <input class="input is-primary" id="MHValue" type="text" placeholder="請輸入出幣數量">
+                </div>
+                <div>
+                    <button class="cashbox button is-primary" id="cashbox" value="81">
+                        發送指令
+                    </button>
+                </div>
+            </div>
+
+            <div class="columns is-gapless">
+                <div class="column is-1">
+                    <a class="subtitle is-5">設定數量</a>
+                </div>
+                <div class="column is-2">
+                    <input class="input is-primary" id="MHStock" type="text" placeholder="請輸入出幣機增加的硬幣數量">
+                </div>
+                <div>
+                    <button class="cashbox button is-primary" id="cashbox" value="80">
+                        發送指令
+                    </button>
+                </div>
+            </div>
+
+        </div>
+        
+    </div>
+
+    <!-- 登录弹出窗口 -->
+    <template id="LoginTemplate">
+        <div class="modal is-active">
+            <div class="modal-background"></div>
+            <div class="modal-card">
+                <header class="modal-card-head">
+                    <h5 class="modal-title">後台登入</h5>                 
+                </header>
+                <section class="modal-card-body">
+                    <!-- 登录表单 -->
+                    <form id="loginForm" method="post" action="/Account/Login">                      
+                        <div class="form-group">
+                            <label for="password">密碼</label>
+                            <input type="password" class="form-control" id="password" name="password">
+                        </div>
+                    </form>
+                </section>
+                <footer class="modal-card-foot">
+                    <button type="button" class="btn btn-secondary is-large" id="loginCancel" data-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary is-large" id="loginSubmit">登錄</button>
+                </footer>
+            </div>
+        </div>
+    </template>
+          
+  
+</body>
+
+</html>
+<script>
+    // 当页面加载完成后执行
+    $(document).ready(function () {
+        // 隐藏所有报表容器
+        $('.block-report').hide();
+
+        // 监听选项卡点击事件
+        $('.tabs ul li a').click(function () {
+            // 获取点击的选项卡的 ID
+            var tabId = $(this).attr('id');
+
+            // 隐藏所有容器
+            $('.big-block').hide();
+
+            // 根据选项卡的 ID 显示相应的容器
+            if (tabId === 'hardware') {
+                $('.block-hardware').show();
+            } else if (tabId === 'report') {
+                $('.block-report').show();
+            }
+        });
+        // 获取本日營業額
+        $.get('/api/Order/DailyRevenue', { date: new Date().toISOString() }, function (data) {
+            // 将營業額数据插入到页面
+            $('.report-daily').text(data.dailyRevenue);
+        });
+
+        // 获取本月營業額
+        var currentDate = new Date();
+        $.get('/api/Order/MonthlyRevenue', { year: currentDate.getFullYear(), month: currentDate.getMonth() + 1 }, function (data) {
+            // 将營業額数据插入到页面
+            $('.report-monthly').text(data.monthlyRevenue);
+        });
+
+        // 获取年度營業額
+        $.get('/api/Order/YearlyRevenue', { year: currentDate.getFullYear() }, function (data) {
+            // 将營業額数据插入到页面
+            $('.report-yearly').text(data.yearlyRevenue);
+        });
+    });
+
+    // 在DOM准备好后触发
+    document.addEventListener('DOMContentLoaded', function () {
+        // 获取模态框模板
+        const modalTemplate = document.getElementById('LoginTemplate');
+
+        // 克隆模板内容并添加到body中
+        const modalInstance = modalTemplate.content.cloneNode(true);
+        document.body.appendChild(modalInstance);
+
+        // 获取登录表单和模态框元素
+        const loginForm = document.getElementById('loginForm');
+        const modal = document.querySelector('.modal');
+
+        // 添加登录按钮的点击事件处理程序
+        const loginButton = document.getElementById('loginSubmit');
+        loginButton.addEventListener('click', function () {
+            // 获取用户输入的密码
+            const passwordInput = document.getElementById('password');
+            const enteredPassword = passwordInput.value;
+
+            // 预定义的密码
+            const predefinedPassword = '1234'; // 替换为您的实际密码
+
+            // 检查输入的密码是否与预定义密码匹配
+            if (enteredPassword === predefinedPassword) {
+                // 登录成功，关闭模态框
+                modal.classList.remove('is-active');
+            } else {
+                // 登录失败，显示错误消息或执行其他操作
+                alert('密码错误，请重试。');
+                // 可以清空密码输入框
+                passwordInput.value = '';
+            }
+        });
+
+        // 添加关闭按钮的点击事件处理程序
+        const closeButton = document.getElementById('loginCancel');
+        closeButton.addEventListener('click', function () {
+            window.location.href = '/';
+            
+        });
+
+        
+    });
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const cashboxButtons = document.querySelectorAll(".cashbox");
+
+        cashboxButtons.forEach(function (button) {
+            button.addEventListener("click", function () {
+
+                const shortcommand = event.target.value;
+                console.log("按钮的值：" + shortcommand);
+                var value;
+                var amount;
+                switch (shortcommand) {
+                    case "C1":  //購買按鈕
+                        Checkout_1();
+                        break;
+                    case "C2":  //結帳按鈕
+                        value = document.getElementById("checkoutValue").value;
+                        console.log("結帳金額：" + value + "元");
+                        Checkout_2(value);
+                        break;
+                    case "C3":  //取消按鈕
+                        console.log("取消結帳");
+                        //兩種方法都可以 我也不知道有甚麼差別
+                        Checkout_2(0);
+                        //Checkout_3();
+                        break;
+                    case "08":  //PS100:[0x08]硬幣機設定
+                        console.log("設定硬幣機硬幣數量");
+                        value = document.getElementById("coinUnitSet").value;
+                        console.log("選定幣值：" + value);
+                        amount = document.getElementById("coinAmoutSet").value;
+                        console.log("輸入數量：" + amount);
+                        StartPay(shortcommand, value, amount);
+                        break;
+                    case "11":  //PS100:[0x11]硬幣機退幣
+                        console.log("硬幣機退幣");
+                        value = document.getElementById("coinAmoutOut").value;
+                        console.log("退幣金額：" + value);
+                        StartPay(shortcommand, value);
+                        break;
+                    case "10":  //PS100:[0x10]暫存器退鈔
+                        console.log("暫存器退鈔");
+                        value = document.getElementById("paperValue").value;
+                        console.log("輸入數量：" + value);
+                        StartPay(shortcommand, value);
+                        break;
+                    case "B":   //XC100:[B,百,十,個]出鈔機出鈔
+                        console.log("出鈔機出鈔");
+                        var value = document.getElementById("xc100Value").value;
+                        console.log("輸入數量：" + value);
+                        value = value / 100;
+                        XC100(shortcommand, value);
+                        break;
+                    case "C":   //XC100:[C,0,0,0]讀取出鈔數量
+                        console.log("讀取出鈔數量");
+                        XC100(shortcommand, 0);
+                        break;
+                    case "I2":  //XC100:[I,0,0,2]清除故障資訊
+                        console.log("清除故障資訊");
+                        XC100("I", 2);
+                        break;
+                    case "I1":  //XC100:[I,0,0,1]清除出鈔計數
+                        console.log("清除出鈔計數");
+                        XC100("I", 1);
+                        break;
+                    case "S1":   //XC100:設定鈔票儲量
+                        console.log("設定鈔票儲量");
+                        var value = document.getElementById("xc100Stock").value;
+                        console.log("輸入數量：" + value);
+                        XC100StockUpdate(value);
+                        break;
+                    case "S2":
+                        console.log("查詢鈔票儲量");
+                        XC100StockScan();
+                        break;
+                    case "80":
+                        console.log("設定硬幣儲量");
+                        var value = document.getElementById("MHStock").value;
+                        console.log("輸入數量：" + value);
+                        MHstockupdate(value);
+                        break;
+                    case "81":
+                        console.log("出幣機出硬幣");
+                        var value = document.getElementById("MHValue").value;
+                        console.log("輸入數量：" + value);
+                        MHDispense(value);
+                        break;
+                    // case "82":
+                    //     console.log("查詢硬幣儲量");
+                    //     break;
+                    default:    //PS100:其餘指令
+                        StartPay(shortcommand);
+                        break;
+                }
+            });
+        });
+    });
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const openButton = document.querySelector(".button.is-primary");
+        const closeButton = document.querySelector(".button.is-danger");
+
+        openButton.addEventListener("click", function () {
+            const tableNumber = document.getElementById("tableSelect").value; // 获取选中的桌号
+            const command = 1; // 假设开启命令的值为 1，你可以根据实际情况调整
+
+            TableCommand(tableNumber, command);
+        });
+
+        closeButton.addEventListener("click", function () {
+            const tableNumber = document.getElementById("tableSelect").value; // 获取选中的桌号
+            const command = 0; // 假设关闭命令的值为 0，你可以根据实际情况调整
+
+            TableCommand(tableNumber, command);
+        });
+    });
+    
+    async function TableCommand(tableNumber, command) {
+        
+        try {
+            const url = `/api/Table/TableCommand?tableNumber=${tableNumber}&command=${command}`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const apiResponse = await response.json();
+                console.log("API 回傳結果：" + apiResponse.message);
+            } else {
+                console.log("API 回傳結果：結帳失敗");
+            }
+        } catch (error) {
+            console.error("呼叫API時發生錯誤：" + error);
+        }
+    }
+
+    async function StartTable(tableNumber, selectedHourValue) {
+        console.log(tableNumber + "" + selectedHourValue);
+        try {
+            const url = `/api/Table/CheckOutTable?tableNumber=${tableNumber}&hours=${selectedHourValue}`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const apiResponse = await response.json();
+                console.log("API 回傳結果：" + apiResponse.message);
+            } else {
+                console.log("API 回傳結果：結帳失敗");
+            }
+        } catch (error) {
+            console.error("呼叫API時發生錯誤：" + error);
+        }
+    }
+
+    function StartPay(shortCommand, value, amount) {
+        fetch('/GenerateFullCommand', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                shortCommand: shortCommand,
+                value: value,
+                amount: amount
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+
+                console.log("傳送的完整指令：" + data.fullCommand);
+
+                return data.fullCommand;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+    }
+    async function XC100(shortCommand, amount) {
+        fetch('/WriteToXC100', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                command: shortCommand,
+                amount: amount
+            })
+        }).then(response => response.json());
+
+    }
+    async function Checkout_1() {
+        fetch('/Checkout_1', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }).then(response => response.json());
+    }
+    async function Checkout_2(checkoutAmount) {
+        fetch(`/Checkout_2?CheckoutAmount=${checkoutAmount}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }).then(response => response.json());
+    }
+    async function Checkout_3() {
+        fetch('/Checkout_3', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }).then(response => response.json());
+    }
+    async function XC100StockUpdate(amount) {
+        fetch(`/XC100StockUpdate?Amount=${amount}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }).then(response => response.json());
+    }
+
+    async function XC100StockScan() {
+        const url = `/XC100StockScan`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        if (response.ok) {
+            const result = await response.json();
+            console.log("剩餘紙鈔數量", result);
+        }
+    }
+
+    async function MHstockupdate(amount) {
+        fetch(`/MHstockupdate?amount=${amount}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }).then(response => response.json());
+    }
+
+    async function MHDispense(amount) {
+        fetch(`/MHDispense?data=${amount}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }).then(response => response.json());
+    }
+
+</script>
