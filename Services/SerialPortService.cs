@@ -18,7 +18,7 @@ using System.Text.Json;
 using System.Net.Http;
 using System.Reflection.Metadata;
 using Serilog.Core;
-
+using System.Security.Cryptography.X509Certificates;
 
 namespace Checkout.Services
 {
@@ -43,20 +43,34 @@ namespace Checkout.Services
 
     public class SerialPortService : ISerialPortService
     {
-
+        //雲端生活家
         private HttpClient _LifePlusClient;
-        public string _LifePlusSID;
+        public LoginApiResponse apiResponse;
+        private string _apiBaseUrl = "https://bossnet-apis-test.lifeplus.tw/v2";
+        private string _userId = "tm_100577@lifeplus.tw";   // 更使用者帳號
+        private string _password = "!tm_100577@#";          // 使用者密碼
+        private string _TM_Location_ID = "100577";          // 店家代碼
+        private string _dev_id = "3201611163";              // 設備代碼
+        private string _edc_id = "ED094110";                // EDC代碼
+        private string _seller_identifier = "23475909";     // 營業人統編
+        private string _version = "02";                     // 軟體版本號
+
+        private string _einv_ym = DateTime.Now.ToString("yyyy") + ((DateTime.Now.Month + 1) / 2 * 2).ToString();    //發票期別
+
+        public string _sid;
+
         private SerialPort PS100_serialPort;
         private SerialPort XC100_serialPort;
         private SerialPort WP_K837_serialPort;
         //private SerialPort MiniHopper_serialPort;
-
+      
         private readonly ILogger<SerialPortService> _logger;
         public event EventHandler<string> CheckoutCompleted;
         public event EventHandler<string> DataReceived;
         private readonly IHubContext<NotificationHub> _notificationHubContext;
         private Dictionary<string, HardwareCommands> fullCommandsMap = new Dictionary<string, HardwareCommands>();
 
+        
         public SerialPortService(string portName, int baudRate, ILogger<SerialPortService> logger, IHubContext<NotificationHub> notificationHubContext)
         {
             
@@ -105,9 +119,14 @@ namespace Checkout.Services
             _LifePlusClient.BaseAddress = new Uri("https://bossnet-apis-test.lifeplus.tw/");
 
             LifePlusLogin();
+            
+
+
 
         }
 
+
+        
 
         public void OpenPort()
         {
@@ -168,7 +187,7 @@ namespace Checkout.Services
         }
         public void K837Transport(string data)
         {
-            LifePlusEnvoice(_LifePlusSID,200);
+            LifePlusEnvoice(200);
 
             if (WP_K837_serialPort.IsOpen)
             {
@@ -193,62 +212,19 @@ namespace Checkout.Services
                 _logger.LogError("串口未打开，无法发送数据");
             }
         }
-        public class order
-        {
-            public string ItemName { get; set; }
-            public int ItemAmount { get; set; }
-            public int OrderTotal { get; set; }
-        }
-        public class LoginApiResponse
-        {
-            public string retVal { get; set; }
-            public int retCode { get; set; }
-            public List<object> settings { get; set; }
-        }
-
-        public class EInvoiceData
-        {
-            public string Invoice_Number { get; set; }
-            public string RandomNumer { get; set; }
-            public string QRCode { get; set; }
-            public string PrintMark { get; set; }
-            public string CarrierType1 { get; set; }
-            public string CarrierType2 { get; set; }
-            public string NPOBAN { get; set; }
-        }
-
-        public class LifePlusEnvoiceResponse
-        {
-            public class EnvoiceRetval
-            {
-                public string shop_Name { get; set; }
-                public string seller_Name { get; set; }
-                public string seller_Identifier { get; set; }
-                public string CarrierType { get; set; }
-                public string seller_Address { get; set; }
-                public List<EInvoiceData> einv_datas { get; set; }
-            }
-
-            public EnvoiceRetval retVal { get; set; }
-            public int retCode { get; set; }
-        }
-        public class EInvoiceInfo
-        {
-            public string LeftQRCode { get; set; }
-            public string RightQRCode { get; set; }
-        }
+        
 
         public async Task<string> LifePlusLogin()
         {
             var content = new FormUrlEncodedContent(new[]
             {
-                new KeyValuePair<string, string>("userid", "tm_100577@lifeplus.tw"),
-                new KeyValuePair<string, string>("passwd", "!tm_100577@#"),
-                new KeyValuePair<string, string>("TM_Location_ID", "100577"),
-                new KeyValuePair<string, string>("dev_id", "3201611163"),
-                new KeyValuePair<string, string>("edc_id", "ED094110"),
-                new KeyValuePair<string, string>("seller_identifier", "23475909"),
-                new KeyValuePair<string, string>("ver", "02")
+                new KeyValuePair<string, string>("userid", _userId),
+                new KeyValuePair<string, string>("passwd", _password),
+                new KeyValuePair<string, string>("TM_Location_ID", _TM_Location_ID),
+                new KeyValuePair<string, string>("dev_id", _dev_id),
+                new KeyValuePair<string, string>("edc_id", _edc_id),
+                new KeyValuePair<string, string>("seller_identifier", _seller_identifier),
+                new KeyValuePair<string, string>("ver", _version)
             });
 
             var response = await _LifePlusClient.PostAsync("api/adminV2/apiLogin", content);
@@ -256,36 +232,38 @@ namespace Checkout.Services
             if (response.IsSuccessStatusCode)
             {
                 string responseBody = await response.Content.ReadAsStringAsync();
-                LoginApiResponse apiResponse = JsonConvert.DeserializeObject<List<LoginApiResponse>>(responseBody).FirstOrDefault();
+                 apiResponse = JsonConvert.DeserializeObject<List<LoginApiResponse>>(responseBody).FirstOrDefault();
                 if (apiResponse != null)
                 {
-                    _LifePlusSID = apiResponse.retVal;
-                    _logger.LogInformation($"SID:{_LifePlusSID}");
-                    return _LifePlusSID;
+                    _logger.LogInformation("login api responsed");
+                    _sid = apiResponse.retVal;
+                    _logger.LogInformation($"SID:{_sid}");
+                    return apiResponse.retVal;
                 }
             }
 
             return null; // 或者根据失败情况返回其他适当的值
         }
-        public async Task<string> LifePlusEnvoice(string sid,long n_TXN_Amount)
-        {
-            _logger.LogInformation($"tryin to get envoice");
-            var data = new FormUrlEncodedContent(new[]
-            {
 
-                new KeyValuePair<string, string>("TM_Location_ID", "100577"),
-                new KeyValuePair<string, string>("n_TXN_Date_Time", DateTime.Now.ToString()),
-                new KeyValuePair<string, string>("einv_ym", "202312"),
-                new KeyValuePair<string, string>("n_Count", "1"),
-                new KeyValuePair<string, string>("utf8", "1")
-            });
+        public async Task<string> LifePlusEnvoice(long n_TXN_Amount)
+        {
+            DateTime today = DateTime.Now;
             _logger.LogInformation($"tryin to get envoice");
+            string n_TXN_Date_Time = $"{DateTime.Now.ToString("yyyy")}{today.Month.ToString().PadLeft(2, '0')}{today.Day.ToString().PadLeft(2, '0')}{today.Hour.ToString().PadLeft(2, '0')}{today.Minute.ToString().PadLeft(2, '0')}{today.Second.ToString().PadLeft(2,'0')}";
+            _logger.LogInformation($"n_TXN_Date_Time:{n_TXN_Date_Time}");
 
             var content = new FormUrlEncodedContent(new[]
             {
-                new KeyValuePair<string, string>("sid", sid),
-                new KeyValuePair<string, string>("data", "[{\r\n \"TM_Location_ID\": \"100577\",\r\n \"n_TXN_Date_Time\": \"20231103132433\",\r\n \"einv_ym\": \"202312\",\r\n \"n_Count\": 1,\r\n \"utf8\": 1\r\n}]")
+                new KeyValuePair<string, string>("sid", _sid),
+                new KeyValuePair<string, string>("data", "[{"+
+                $"\"TM_Location_ID\": \"{_TM_Location_ID}\"" +
+                $",\"n_TXN_Date_Time\": \"{n_TXN_Date_Time}\"" +
+                $",\"einv_ym\": \"{_einv_ym}\"" +
+                $",\"n_Count\": 1" +
+                $",\"utf8\": 1"+
+                "}]")
             });
+            
             var response = await _LifePlusClient.PostAsync("api/einvoiceV2/txnqueryv08", content);
             if (response.IsSuccessStatusCode)
             {
@@ -314,6 +292,9 @@ namespace Checkout.Services
                         string npoban = einvoiceData.NPOBAN;
                         recipt(invoiceNumber, randomNumer, qrCode,"",n_TXN_Amount);
                         // 根据数据的具体需求执行逻辑或日志记录
+                        string Transdate = $"{today.Year}-{today.Month}-{today.Day} {today.TimeOfDay.ToString().Substring(0,14)}";
+                        _logger.LogInformation(Transdate);
+                        LifePlusUpload(2, Transdate, 200, invoiceNumber, randomNumer, qrCode, n_TXN_Date_Time);
                     }
 
 
@@ -324,6 +305,66 @@ namespace Checkout.Services
             return null;
             _logger.LogInformation($"");
         }
+        public async Task LifePlusUpload(long id,string TransDate,long n_TXN_Amount,string invoiceNumber,string RandomNumer,string QRCode,string n_TXN_Date_Time)
+        {
+            //支付類別 CA:現金 CR:信用卡 EC:悠遊卡 AL:支付寶 GA:橘子支 IP:iPass IC:iCash CP:折價券 CK:支票 GC:券類 LP:Line Pay RP:點數 AP:Apply Pay SP:Samsung Pay AN:Google Pay TW:Taiwan Pay JP:Jko Pay
+            string PaymentType = "CA";
+            //載具類別 EJ0002:無載具 3J0002:手機載具 1K0001:悠遊卡載具 2G0001:iCash 載具 CQ0001:自然人憑證載具 EK0002:信用卡載具 1H0001:一卡通載具
+            string CarrierType = "EJ0002";
+            //載具顯碼
+            string CarrierId1 = "";
+            //載具隱碼
+            string CarrierId2 = "";
+            //標示發票是否印出
+            string PrintMark = "Y";
+            //捐贈碼
+            string NPOBAN = "";
+            //應稅稅額合計：
+            long taxAmount = 10;
+
+            _logger.LogInformation($"n_TXN_Date_Time:{n_TXN_Date_Time}");
+            //_logger.LogInformation(TransDate);
+            var content = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("sid", _sid),
+                new KeyValuePair<string, string>("data", "[{"+
+                $"\"TM_Location_ID\": \"{_TM_Location_ID}\"" +
+                $",\"n_Device_ID\": \"{_dev_id}\"" +
+                $",\"EDC_ID\": \"{_edc_id}\"" +
+                $",\"n_TXN_Date_Time\": \"{n_TXN_Date_Time}\"" +
+                $",\"buyer_Identifier\":\"0000000000\"" +
+                $",\"Invoice_Number\": \"{invoiceNumber}\"" +
+                $",\"Invoice_Type\": \"07\"" +
+                $",\"seller_Identifier\": \"{_seller_identifier}\"" +
+                $",\"CarrierType\": \"{CarrierType}\"" +
+                $",\"CarrierId1\": \"{CarrierId1}\"" +
+                $",\"CarrierId2\": \"{CarrierId2}\"" +
+                $",\"PrintMark\": \"{PrintMark}\"" +
+                $",\"NPOBAN\": \"{NPOBAN}\"" +
+                $",\"RandomNumber\": \"{RandomNumer}\"" +
+                $",\"QRCode\": \"{QRCode}\"" +
+                $",\"Items_CNT\": \"1\"" +
+                $",\"Items_ID\":[\"0001\"]" +
+                $",\"Items_SName\":[\"包台費\"]" +
+                $",\"Items_UnitPrice\":[\"{n_TXN_Amount}\"]" +
+                $",\"Items_Quantity\":[\"1\"]" +
+                $",\"Items_Taxtype\":[\"1\"]" +
+                $",\"Items_Taxrate\":[\"0.05\"]" +                
+                $",\"TaxAmount\": \"{taxAmount}\"" +
+                $",\"n_TXN_Amount\": \"{n_TXN_Amount}\"" +
+                "}]")
+            });
+
+            var response = await _LifePlusClient.PostAsync("api/einvoiceV2/txnupload", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                string responseBody = await response.Content.ReadAsStringAsync();
+                _logger.LogInformation($"{responseBody}");
+            }
+
+        }
+
         public void recipt(string invoiceNumber, string randomNumer, string qrCode,string buyer_identifier,long n_TXN_Amount)
         {
             // 取得今天日期
@@ -402,19 +443,67 @@ namespace Checkout.Services
 
             BinaryOut(POSCmd.Align(0));
 
-            BinaryOut(0x1b, "$", 40, 0, POSCmd.eReceiptQRCode(Encoding.UTF8.GetBytes(leftQRContent),6));
+            BinaryOut(0x1b, "$", 40, 0, POSCmd.eReceiptQRCode(Encoding.UTF8.GetBytes(leftQRContent),9));
 
-            BinaryOut(POSCmd.FeedDotBack(129));
-            //BinaryOut(POSCmd.FeedDotBack(172));
+            //BinaryOut(POSCmd.FeedDotBack(129));   //For QRCode V6
+            BinaryOut(POSCmd.FeedDotBack(167));
 
-            BinaryOut(0x1b, "$", 226, 0, POSCmd.eReceiptQRCode(Encoding.UTF8.GetBytes(rightQRContent),6));
+            BinaryOut(0x1b, "$", 226, 0, POSCmd.eReceiptQRCode(Encoding.UTF8.GetBytes(rightQRContent),9));
 
             BinaryOut(POSCmd.FeedDot(120), POSCmd.CutPartial());
             //if (s_bolAutoConnect) OpenService(false);
 
         }
 
-       
+        public class LifePlusInfo
+        {
+            public string userid  { get; set; }
+            
+        }
+        public class order
+        {
+            public string ItemName { get; set; }
+            public int ItemAmount { get; set; }
+            public int OrderTotal { get; set; }
+        }
+        public class LoginApiResponse
+        {
+            public string retVal { get; set; }
+            public int retCode { get; set; }
+            public List<object> settings { get; set; }
+        }
+
+        public class EInvoiceData
+        {
+            public string Invoice_Number { get; set; }
+            public string RandomNumer { get; set; }
+            public string QRCode { get; set; }
+            public string PrintMark { get; set; }
+            public string CarrierType1 { get; set; }
+            public string CarrierType2 { get; set; }
+            public string NPOBAN { get; set; }
+        }
+
+        public class LifePlusEnvoiceResponse
+        {
+            public class EnvoiceRetval
+            {
+                public string shop_Name { get; set; }
+                public string seller_Name { get; set; }
+                public string seller_Identifier { get; set; }
+                public string CarrierType { get; set; }
+                public string seller_Address { get; set; }
+                public List<EInvoiceData> einv_datas { get; set; }
+            }
+
+            public EnvoiceRetval retVal { get; set; }
+            public int retCode { get; set; }
+        }
+        public class EInvoiceInfo
+        {
+            public string LeftQRCode { get; set; }
+            public string RightQRCode { get; set; }
+        }
         public void K837Write(string data)
         {
             if (WP_K837_serialPort.IsOpen)
