@@ -5,27 +5,71 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/bulma/css/bulma.min.css">
     <link rel="stylesheet" href="~/css/index.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/3.1.12/signalr.min.js"></script>
+    <script src="~/js/signalr.min.js"></script>
 
     <title>麻將開台</title>
     <style>
+        body {
+            overflow-y: scroll; /* 允許滾動 */
+        }
+
+            body::-webkit-scrollbar {
+                width: 0em; /* 谷歌和Safari的寬度 */
+                position:revert-layer;
+            }
+
+                
+            body::-webkit-scrollbar-thumb {
+                background-color: #888; /* 滾動條的顏色 */
+            }
+           
+        .button-container{
+            display: flex;
+            justify-content: space-evenly;
+            flex-wrap: wrap;
+            align-content: space-around;
+            margin-top: 100px;
+            margin-bottom: 100px;
+        }
+
+        
         /* 將互動視窗內容置中 */
         .modal-card-body {
             display: flex;
             flex-direction: column;
-           
         }
 
-        /* 調整單選按鈕間距 */
-        .radio {
+        .control {
+            display: flex;
+            flex-wrap: wrap;
+            flex-direction: column;
+            margin-left: 35px;
+        }
+        .label-radio{
+            display: flex;
+            align-items: center;
             margin-bottom: 10px;
-            margin-left:35px;
+            
+        }
+
+        .form-check-input {
+            width: 2em;
+            height: 2em;
+        }
+            .form-check-input:checked {
+                background-color: #44ca43;
+                border-color: #5bd983;
+            }
+        /* 調整單選按鈕間距 */
+        .opitionString {
+            margin-left: 10px;
         }
 
         /* 將結帳和取消按鈕靠右 */
@@ -34,10 +78,10 @@
             justify-content: center; /* 改為 center */
         }
 
-            /* 調整結帳和取消按鈕間距 */
-            .modal-card-foot button {
-                margin: 0 50px; /* 同時調整左右間距 */
-            }
+        /* 調整結帳和取消按鈕間距 */
+        .modal-card-foot button {
+            margin: 0 50px; /* 同時調整左右間距 */
+        }
 
         .custom-button {
             width: 500px;
@@ -46,11 +90,31 @@
             
         }
         .btn-table{
+            margin-top: 10px;
+            margin-bottom: 10px;
             border-radius: 24px;
             width: 500px;
             height: 210px;
             border: 10px solid;
             border-color: #00d1b2;
+        }
+        .btn-table.on-ready{
+            margin-top: 10px;
+            margin-bottom: 10px;
+            border-radius: 24px;
+            width: 500px;
+            height: 210px;
+            border: 10px solid;
+            border-color: #00d1b2;
+        }
+        .btn-table.on-using{
+            margin-top: 10px;
+            margin-bottom: 10px;
+            border-radius: 24px;
+            width: 500px;
+            height: 210px;
+            border: 10px solid;
+            border-color: #d1d100;
         }
         /* .btn-table:hover {
             background-color: #00d1b2;
@@ -59,13 +123,16 @@
         } */
         .timer  {
             font-size: 260%;
-            
-            
         }
+        
+       
+
+        
         </style>
 </head>
-<body>
-    <header>
+
+<body >
+    <header >
         <nav class="navbar is-primary">
             <div class="column">
                 <div class="columns  is-mobile is-2">
@@ -79,66 +146,83 @@
             </div>          
         </nav>     
     </header>
-    <div class="container">
-        <main role="main" class="pb-3">
-            <div class="column">
-                <div class="columns is-mobile is-2">
-                    <div class="column is-half">
-                        <button class="button btn-table" id="1" data-table-number="大三元" table-number="1">
+    <!--桌號按鈕區域容器-->
+    <div class="button-container" id="tableButtons">
+        @*<button class="button btn-table" id="1" data-table-number="大三元(一)" table-number="1">
+            <p class="timer title">大三元(一) </p>
+        </button>
 
-                            <p class="timer title">大三元</p>
-                        </button>
-                    </div>
-                    <div class="column is-half">
-                        <button class="button btn-table" id="2" data-table-number="大四喜" table-number="2">
-                            <p class="timer title">大四喜</p>
-                        </button>
-                    </div>
-                </div>
-                <div class="columns is-mobile is-2">
-                    <div class="column is-half ">
-                        <button class="button btn-table" id="3" data-table-number="清一色" table-number="3">
-                            <p class="timer title">清一色</p>
-                        </button>
+        <button class="button btn-table" id="2" data-table-number="大四喜(一)" table-number="2">
+            <p class="timer title">大四喜(一)</p>
+        </button>
 
-                    </div>
-                    <div class="column is-half">
-                        <button class="button btn-table" id="4" data-table-number="湊一色" table-number="4">
-                            <p class="timer title">湊一色</p>
-                        </button>
+        <button class="button btn-table" id="3" data-table-number="清一色(一)" table-number="3">
+            <p class="timer title">清一色(一)</p>
+        </button>
 
-                    </div>
-                </div>
-                <div class="columns is-mobile is-2">
-                    <div class="column is-half">
-                        <button class="button btn-table" id="5" data-table-number="小三元" table-number="5">
-                            <p class="timer title">小三元</p>
-                        </button>
-                    </div>
-                    <div class="column is-half">
-                        <button class="button btn-table" id="6" data-table-number="碰碰胡" table-number="6">
-                            <p class="timer title">碰碰胡</p>
-                        </button>
-                    </div>
-                </div>
-                <div class="columns is-mobile is-2">
-                    <div class="column is-half">
-                        <button class="button btn-table" id="7" data-table-number="一摸三" table-number="7">
-                            <p class="timer title">一摸三</p>
-                        </button>
-                    </div>
-                    <div class="column is-half">
-                        <button class="button btn-table" id="8" data-table-number="槓開花" table-number="8">
-                            <p class="timer title">槓開花</p>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </main>
+        <button class="button btn-table" id="4" data-table-number="湊一色(一)" table-number="4">
+            <p class="timer title">湊一色(一)</p>
+        </button>
+
+        <button class="button btn-table" id="5" data-table-number="小三元(一)" table-number="5">
+            <p class="timer title">小三元(一)</p>
+        </button>
+
+        <button class="button btn-table" id="6" data-table-number="碰碰胡(一)" table-number="6">
+            <p class="timer title">碰碰胡(一)</p>
+        </button>
+
+        <button class="button btn-table" id="7" data-table-number="一摸三(一)" table-number="7">
+            <p class="timer title">一摸三(一)</p>
+        </button>
+
+        <button class="button btn-table" id="8" data-table-number="槓開花(一)" table-number="8">
+            <p class="timer title">槓開花(一)</p>
+        </button>
+
+        <button class="button btn-table" id="9" data-table-number="大三元(二)" table-hour-rate="800" table-number="9">
+            <p class="timer title">大三元(二)</p>
+        </button>
+
+        <button class="button btn-table" id="10" data-table-number="大四喜(二)" table-hour-rate="800" table-number="10">
+            <p class="timer title">大四喜(二)</p>
+        </button>
+
+        <button class="button btn-table" id="11" data-table-number="清一色(二)" table-hour-rate="800" table-number="11">
+            <p class="timer title">清一色(二)</p>
+        </button>
+
+        <button class="button btn-table" id="12" data-table-number="湊一色(二)" table-hour-rate="800" table-number="12">
+            <p class="timer title">湊一色(二)</p>
+        </button>
+
+        <button class="button btn-table" id="13" data-table-number="小三元(二)" table-hour-rate="800" table-number="13">
+            <p class="timer title">小三元(二)</p>
+        </button>
+
+        <button class="button btn-table" id="14" data-table-number="碰碰胡(二)" table-hour-rate="800" table-number="14">
+            <p class="timer title">碰碰胡(二)</p>
+        </button>
+
+        <button class="button btn-table" id="15" data-table-number="一摸三(二)" table-hour-rate="800" table-number="15">
+            <p class="timer title">一摸三(二)</p>
+        </button>
+
+        <button class="button btn-table" id="16" data-table-number="槓開花(二)" table-hour-rate="800" table-number="16">
+            <p class="timer title">槓開花(二)</p>
+        </button> *@
     </div>
-    
-    <div id="modalWrapper" class="modal-wrapper"></div>
+
+    <footer class="border-top footer text-muted has-background-primary">
+        <div id="hidden-enterance" class="container">
+            &copy; 2023 - 松洋股份有限公司  業務：02-86471188 專線：0935517378王先生
+        </div>
+    </footer>
+
     <!--互動式視窗(外殼)-->
+    <div id="modalWrapper" class="modal-wrapper"></div>
+
+    <!-- 購買選項模板 -->
     <template id="modalTemplate">
         <div class="modal is-active">
             <div class="modal-background"></div>
@@ -149,31 +233,26 @@
                 </header>
                 <section class="modal-card-body">
                     <div class="control">
-                        <label class="radio is-flex is-align-items-center">
-                            <input type="radio" name="purchaseHours" value="1" >
-                            <span class="is-size-2">一小時/400元</span>
+                        <label class="label-radio">
+                            <input type="radio" class="form-check-input" name="purchaseHours" value="1" >
+                            <span class="opitionString is-size-2" hourValue="1"></span>
                         </label>
-                        <br />
-                        <label class="radio is-flex is-align-items-center">
-                            <input type="radio" name="purchaseHours" value="2" >
-                            <span class="is-size-2">二小時/800元</span>
+                        <label class="label-radio">
+                            <input type="radio" class="form-check-input" name="purchaseHours" value="2">
+                            <span class="opitionString is-size-2" hourValue="2"></span>
                         </label>
-                        <br />
-                        <label class="radio is-flex is-align-items-center">
-                            <input type="radio" name="purchaseHours" value="3">
-                            <span class="is-size-2">三小時/1200元</span>
+                        <label class="label-radio">
+                            <input type="radio" class="form-check-input" name="purchaseHours" value="3">
+                            <span class="opitionString  is-size-2" hourValue="3"></span>
                         </label>
-                        <br />
-                        <label class="radio is-flex is-align-items-center">
-                            <input type="radio" name="purchaseHours" value="4">
-                            <span class="is-size-2">四小時/1600元</span>
+                        <label class="label-radio">
+                            <input type="radio" class="form-check-input" name="purchaseHours" value="4">
+                            <span class="opitionString is-size-2" hourValue="4"></span>
                         </label>
-                        <br />
-                        <label class="radio is-flex is-align-items-center">
-                            <input type="radio" name="purchaseHours" value="5" >
-                            <span class="is-size-2">五小時/2000元</span>
+                        <label class="label-radio">
+                            <input type="radio" class="form-check-input" name="purchaseHours" value="5">
+                            <span class="opitionString is-size-2" hourValue="5"></span>
                         </label>
-                        <br />
                     </div>
                 </section>
                 <footer class="modal-card-foot">
@@ -185,6 +264,7 @@
             </div>
         </div>
     </template>
+
     <!-- 提示用户投入现金的模板 -->
     <template id="cashReminderTemplate">
         <div class="modal is-active">
@@ -194,34 +274,6 @@
                     <p class="subtitle is-1">{{tableNumber}}</p>
                 </header>
                 <section class="modal-card-body">
-
-                    @* <svg xlink:href="#~/media/insert_reminder_animation.svg" width="736" height="582"  viewBox="0 0 784 784" fill="none" id="svg9557" preserveAspectRatio="xMidYMid">
-                        <defs id="defs6831" />
-                        <rect x="598" y="87" width="157" height="609" rx="50" fill="black" id="rect1832" />
-
-                        <path d="M 534.293 357.415 C 517.343 357.415 503.431 371.166 503.431 388.276 C 503.431 405.226 517.183 419.138 534.293 419.138 C 551.243 419.138 565.155 405.386 565.155 388.276 C 565.155 371.166 551.243 357.415 534.293 357.415 Z M 210.963 357.415 C 194.013 357.415 180.101 371.166 180.101 388.276 C 180.101 405.226 193.853 419.138 210.963 419.138 C 227.913 419.138 241.825 405.386 241.825 388.276 C 241.825 371.166 227.913 357.415 210.963 357.415 Z M 665.416 257.793 L 665.416 518.76 C 665.416 546.743 642.709 569.45 614.726 569.45 L 130.69 569.45 C 102.707 569.45 80 546.743 80 518.76 L 80 257.793 C 80 229.81 102.707 207.103 130.69 207.103 L 614.726 207.103 C 642.549 206.943 665.416 229.81 665.416 257.793 Z M 622.081 312.641 C 618.084 313.6 613.766 314.24 609.449 314.24 C 581.145 314.24 558.119 291.213 558.119 262.91 C 558.119 258.593 558.599 254.435 559.718 250.437 L 182.66 250.437 C 183.299 253.476 183.619 256.674 183.619 259.872 C 183.619 288.175 160.593 311.202 132.289 311.202 C 129.251 311.202 126.213 310.882 123.335 310.402 L 123.335 466.311 C 126.213 465.831 129.251 465.511 132.289 465.511 C 160.593 465.511 183.619 488.538 183.619 516.841 C 183.619 520.039 183.299 523.237 182.66 526.275 L 558.279 526.275 C 557.959 524.196 557.799 522.118 557.799 519.879 C 557.799 491.576 580.826 468.549 609.129 468.549 C 613.446 468.549 617.764 469.189 621.762 470.148 L 621.762 312.641 L 622.081 312.641 Z M 483.763 388.276 C 483.763 449.68 434.032 499.411 372.628 499.411 C 311.224 499.411 261.493 449.68 261.493 388.276 C 261.493 326.873 311.224 277.142 372.628 277.142 C 434.032 276.982 483.763 326.873 483.763 388.276 Z M 362.234 359.333 C 362.234 355.336 363.194 352.138 365.112 349.579 C 367.031 347.021 370.07 345.741 374.227 345.741 C 378.225 345.741 381.583 347.34 383.981 350.379 C 385.9 352.937 387.02 356.295 387.499 360.932 C 387.659 363.011 389.578 364.45 391.657 364.45 L 412.445 364.131 C 414.683 364.131 416.602 362.212 416.442 359.973 C 415.963 350.858 412.924 343.183 407.647 337.106 C 402.211 330.71 394.855 326.553 385.74 324.794 L 385.74 309.123 C 385.74 307.204 384.141 305.605 382.222 305.605 L 369.59 305.605 C 367.671 305.605 366.072 307.204 366.072 309.123 L 366.072 324.314 C 356.478 325.753 348.642 329.271 342.566 335.028 C 336.01 341.424 332.652 349.419 332.652 359.173 C 332.652 370.047 335.69 378.202 341.926 383.799 C 348.162 389.396 358.077 394.833 371.828 400.429 C 377.425 402.828 381.423 405.386 383.502 407.785 C 385.74 410.343 386.86 413.861 386.86 418.499 C 386.86 422.496 385.74 425.694 383.662 428.093 C 381.583 430.492 378.385 431.771 374.227 431.771 C 369.27 431.771 365.272 430.172 362.074 426.974 C 359.516 424.415 357.917 420.418 357.597 415.141 C 357.437 413.062 355.518 411.463 353.439 411.623 L 332.652 411.943 C 330.413 411.943 328.494 413.861 328.654 416.1 C 329.134 427.134 332.811 435.609 339.368 441.685 C 346.563 448.241 355.518 452.079 366.072 453.358 L 366.072 467.59 C 366.072 469.509 367.671 471.108 369.59 471.108 L 382.222 471.108 C 384.141 471.108 385.74 469.509 385.74 467.59 L 385.74 452.878 C 394.375 451.279 401.251 447.921 406.688 442.645 C 413.084 436.568 416.282 428.413 416.282 418.339 C 416.282 407.785 413.084 399.63 406.848 393.873 C 400.452 388.117 390.697 382.52 377.265 376.763 C 371.509 374.205 367.511 371.646 365.432 369.248 C 363.194 366.529 362.234 363.331 362.234 359.333 Z" fill="black" id="path1660"><animateTransform attributeName="transform" attributeType="auto" type="translate" values="-50 0;75 0;-50 0" calcMode="spline" keyTimes="0; 0.6666666666666666; 1" keySplines="0 0 1 1;0 0 1 1" dur="1.5s" begin="0s" repeatCount="indefinite" additive="sum" accumulate="none" fill="freeze" id="animateTransform5059" /></path>
-                    </svg>  *@
-
-                    <svg xlink:href="#~/media/insert_reminder_animation.svg" width="411" height="325" viewBox="0 0 690 428" fill="none" id="svg2825" preserveAspectRatio="xMidYMid">
-                        <g clip-path="url(#clip0_113_304)" id="g9951">
-                            <rect width="264.9886170988873" height="303.95184878065993" transform="translate(0 62.5024)" fill="#343434" id="rect3892" />
-                            <path fill-rule="evenodd" clip-rule="evenodd" d="M 112.955 296.655 C 134.877 306.877 159.961 307.973 182.69 299.7 C 205.419 291.427 223.931 274.464 234.153 252.543 C 244.375 230.621 245.471 205.537 237.198 182.808 C 228.925 160.079 211.962 141.567 190.041 131.345 C 168.119 121.123 143.035 120.027 120.306 128.3 C 97.5767 136.573 79.0649 153.536 68.8428 175.457 C 58.6206 197.379 57.5254 222.463 65.7981 245.192 C 74.0707 267.921 91.0337 286.433 112.955 296.655 Z M 254.817 262.178 C 242.039 289.58 218.9 310.784 190.488 321.125 C 162.077 331.466 130.721 330.097 103.32 317.319 C 75.9176 304.541 54.7139 281.402 44.3731 252.99 C 34.0322 224.579 35.4012 193.223 48.1789 165.822 C 60.9567 138.42 84.0964 117.216 112.508 106.875 C 140.919 96.5342 172.275 97.9032 199.677 110.681 C 227.078 123.459 248.282 146.598 258.623 175.01 C 268.964 203.421 267.595 234.777 254.817 262.178 Z" fill="#FFFBFB" id="path8358"><animateTransform attributeName="transform" attributeType="auto" type="rotate" values="0 150 215;35 180 315" calcMode="spline" keyTimes="0;1" keySplines="0 0 1 1" dur="1.5s" begin="0s" repeatCount="indefinite" additive="sum" accumulate="none" fill="freeze" id="animateTransform6990" transform="matrix(1 0 0 1 0 0)" /></path>
-                            <path d="M 109.716 219.463 C 104.904 232.344 110.229 246.603 127.33 255.998 L 123.053 265.17 L 130.883 268.821 L 135.189 259.587 C 154.054 266.835 169.273 262.055 175.863 247.922 C 181.87 235.04 176.818 224.614 163.795 214.379 L 158.294 210.038 L 169.959 185.024 C 177.392 189.581 180.369 196.172 178.799 202.647 L 192.539 209.054 C 197.147 196.611 191.216 182.451 175.217 173.747 L 179.484 164.596 L 171.654 160.944 L 167.28 170.325 C 150.972 164.573 136 168.986 129.818 182.243 C 124.355 193.958 128.768 205.101 140.484 214.269 L 145.069 217.956 L 132.705 244.471 C 125.25 239.522 121.986 232.62 123.644 225.958 L 109.716 219.463 Z M 151.276 204.481 C 144.397 199.116 141.922 193.521 144.469 188.06 C 147.326 181.931 153.975 179.449 162.031 181.581 L 151.339 204.51 L 151.276 204.481 Z M 153.046 224.238 C 161.41 230.778 164.079 236.286 161.192 242.477 C 157.897 249.543 150.275 251.877 140.419 248.372 L 152.035 223.462 L 153.046 224.238 Z" fill="#FFFBFB" id="path8570"><animateTransform attributeName="transform" attributeType="auto" type="rotate" values="0 150 215;35 180 315" calcMode="spline" keyTimes="0;1" keySplines="0 0 1 1" dur="1.5s" begin="0s" repeatCount="indefinite" additive="sum" accumulate="none" fill="freeze" id="animateTransform6582" /></path>
-                            <rect x="172.498" y="90.0001" width="57" height="248" fill="#343434" id="rect9439" />
-                            <rect x="201.498" y="89.5104" width="64.0816" height="248.571" rx="32.0408" fill="#FFFBFB" id="rect4278" />
-                        </g>
-                        <rect x="329.995" width="12.5" height="428" rx="6.25" fill="#D9D9D9" id="rect718" />
-                        <rect width="307.02976863227036" height="319.5253160371054" transform="translate(369.495 54)" fill="#343434" id="rect4645" />
-                        <rect x="613.577" y="89.5103" width="64.0816" height="248.571" rx="32.0408" fill="#FFFBFB" id="rect2045" />
-                        <path d="M 603.107 126.653 L 626.985 126.653 C 643.554 126.653 656.985 140.085 656.985 156.653 L 656.985 270.939 C 656.985 287.507 643.554 300.939 626.985 300.939 L 603.107 300.939 L 603.107 126.653 Z" fill="#343434" id="path179" />
-                        <path d="M 587.574 199.883 C 580.656 199.883 574.977 205.497 574.977 212.48 C 574.977 219.399 580.59 225.077 587.574 225.077 C 594.493 225.077 600.171 219.464 600.171 212.48 C 600.171 205.497 594.493 199.883 587.574 199.883 Z M 455.603 199.883 C 448.684 199.883 443.006 205.497 443.006 212.48 C 443.006 219.399 448.619 225.077 455.603 225.077 C 462.521 225.077 468.199 219.464 468.199 212.48 C 468.199 205.497 462.521 199.883 455.603 199.883 Z M 641.094 159.222 L 641.094 265.739 C 641.094 277.161 631.826 286.429 620.404 286.429 L 422.838 286.429 C 411.416 286.429 402.148 277.161 402.148 265.739 L 402.148 159.222 C 402.148 147.8 411.416 138.532 422.838 138.532 L 620.404 138.532 C 631.76 138.467 641.094 147.8 641.094 159.222 Z M 623.406 181.609 C 621.774 182 620.012 182.261 618.25 182.261 C 606.698 182.261 597.299 172.863 597.299 161.31 C 597.299 159.548 597.495 157.851 597.952 156.219 L 444.05 156.219 C 444.311 157.459 444.442 158.765 444.442 160.07 C 444.442 171.623 435.043 181.021 423.491 181.021 C 422.251 181.021 421.011 180.891 419.836 180.695 L 419.836 244.331 C 421.011 244.135 422.251 244.005 423.491 244.005 C 435.043 244.005 444.442 253.403 444.442 264.955 C 444.442 266.261 444.311 267.566 444.05 268.806 L 597.364 268.806 C 597.234 267.958 597.169 267.109 597.169 266.196 C 597.169 254.643 606.567 245.245 618.119 245.245 C 619.882 245.245 621.644 245.506 623.276 245.897 L 623.276 181.609 L 623.406 181.609 Z M 566.95 212.48 C 566.95 237.543 546.651 257.841 521.588 257.841 C 496.526 257.841 476.227 237.543 476.227 212.48 C 476.227 187.417 496.526 167.119 521.588 167.119 C 546.651 167.054 566.95 187.417 566.95 212.48 Z M 517.346 200.667 C 517.346 199.035 517.738 197.73 518.521 196.685 C 519.304 195.641 520.544 195.119 522.241 195.119 C 523.873 195.119 525.243 195.772 526.222 197.012 C 527.006 198.056 527.463 199.427 527.658 201.319 C 527.724 202.168 528.507 202.755 529.355 202.755 L 537.84 202.625 C 538.754 202.625 539.537 201.842 539.472 200.928 C 539.276 197.208 538.036 194.075 535.882 191.594 C 533.663 188.984 530.661 187.287 526.94 186.569 L 526.94 180.173 C 526.94 179.389 526.288 178.737 525.505 178.737 L 520.348 178.737 C 519.565 178.737 518.912 179.389 518.912 180.173 L 518.912 186.373 C 514.996 186.96 511.798 188.396 509.318 190.746 C 506.642 193.357 505.272 196.62 505.272 200.601 C 505.272 205.04 506.512 208.368 509.057 210.653 C 511.602 212.937 515.649 215.156 521.262 217.441 C 523.546 218.42 525.178 219.464 526.027 220.443 C 526.94 221.487 527.397 222.923 527.397 224.816 C 527.397 226.447 526.94 227.753 526.092 228.732 C 525.243 229.711 523.938 230.233 522.241 230.233 C 520.218 230.233 518.586 229.58 517.281 228.275 C 516.236 227.231 515.584 225.599 515.453 223.445 C 515.388 222.597 514.605 221.944 513.756 222.009 L 505.272 222.14 C 504.358 222.14 503.575 222.923 503.64 223.837 C 503.836 228.34 505.337 231.799 508.013 234.28 C 510.95 236.956 514.605 238.522 518.912 239.044 L 518.912 244.853 C 518.912 245.636 519.565 246.289 520.348 246.289 L 525.505 246.289 C 526.288 246.289 526.94 245.636 526.94 244.853 L 526.94 238.848 C 530.465 238.196 533.271 236.825 535.49 234.671 C 538.101 232.191 539.407 228.862 539.407 224.751 C 539.407 220.443 538.101 217.114 535.556 214.765 C 532.945 212.415 528.964 210.131 523.481 207.781 C 521.132 206.737 519.5 205.692 518.651 204.713 C 517.738 203.604 517.346 202.298 517.346 200.667 Z" fill="#FFFBFB" id="path6984"><animateTransform attributeName="transform" attributeType="auto" type="translate" values="0 0;280 0" calcMode="spline" keyTimes="0;1" keySplines=".25 0 .75 .75" dur="1.5s" begin="0s" repeatCount="indefinite" additive="sum" accumulate="none" fill="freeze" id="animateTransform9374" /></path>
-
-                        <defs id="defs4842">
-                            <clipPath id="clip0_113_304">
-                                <rect width="302.995" height="302.995" fill="white" transform="translate(0 62.5024)" id="rect2074" />
-                            </clipPath>
-                        </defs>
-                    </svg>
                     <p class="subtitle is-1">請投入現金</p>      
                     <p class="subtitle is-1">應付金額 {{totalAmount}}</p>
                     <p class="subtitle is-1">已付金額 {{currentAmount}}</p>
@@ -233,6 +285,7 @@
             </div>
         </div>
     </template>
+
     <!-- 提示用户退款现金的模板 -->
     <template id="refoundReminderTemplate">
         <div class="modal is-active">
@@ -252,6 +305,7 @@
             </div>
         </div>
     </template>
+
     <!-- 感謝購買視窗 -->
     <template id="checkOutCompleteTemplate">
         <div class="modal is-active">
@@ -271,51 +325,131 @@
             </div>
         </div>
     </template>  
-    <footer class="border-top footer text-muted has-background-primary">
-        <div id="hidden-enterance" class="container">
-                &copy; 2023 - 松洋股份有限公司  業務：02-86471188 專線：0935517378王先生       
-        </div>
-    </footer>
+
+    
 
     
 </body>
 </html>
 
 <script >
-    //互動式視窗(動態內容)
+
+    // 数据，每个分类对应的价格
+    const categoryPrices = {
+        '一般桌': 400,
+        '包廂': 800,
+        // 添加其他分类和价格
+    };
+
+
+
+    // 生成按钮的函数
+    function createTableButton(id, tableNumber, category) {
+        const container = document.getElementById('tableButtons');
+        // 创建按钮元素
+        const button = document.createElement('button');
+        button.classList.add('button', 'btn-table');
+        button.setAttribute('id', id);
+        button.setAttribute('data-table-number', tableNumber);
+        button.setAttribute('table-number', id);
+        // 设置按钮内部内容
+        const p = document.createElement('p');
+        p.classList.add('timer', 'title');
+        p.textContent = tableNumber;
+        button.appendChild(p);
+        // 设置按钮价格
+        const hourlyRate = categoryPrices[category] || 400; // 默认价格为400
+        if (hourlyRate !== 400) {
+            button.setAttribute('table-hour-rate', hourlyRate);
+        }
+        // 将按钮添加到容器中
+        container.appendChild(button);
+    }
+   
+    //创建按钮
+    //creatTableButton('桌號','桌號名稱','收費方式'):
+    createTableButton('1', '大三元(一)', '一般桌');
+    createTableButton('2', '大四喜(一)', '一般桌');
+    createTableButton('3', '清一色(一)', '一般桌');
+    createTableButton('4', '湊一色(一)', '一般桌');
+    createTableButton('5', '小三元(一)', '一般桌');
+    createTableButton('6', '碰碰胡(一)', '一般桌');
+    createTableButton('7', '一摸三(一)', '一般桌');
+    createTableButton('8', '槓開花(一)', '一般桌');
+    createTableButton('9', '大三元(二)', '包廂');
+    createTableButton('10', '大四喜(二)', '包廂');
+    createTableButton('11', '清一色(二)', '包廂');
+    createTableButton('12', '湊一色(二)', '包廂');
+    createTableButton('13', '小三元(二)', '包廂');
+    createTableButton('14', '碰碰胡(二)', '包廂');
+    createTableButton('15', '一摸三(二)', '包廂');
+    createTableButton('16', '槓開花(二)', '包廂');
+
     document.addEventListener('DOMContentLoaded', function () {
         const modalWrapper = document.getElementById('modalWrapper');
         const buttons = document.querySelectorAll('.button[data-table-number]');
+
+        //console.log(buttons);
         const modalTemplate = document.getElementById('modalTemplate');
         let tableNumber;
         let tableName;
+        let hourlyRate;
         let data;
         let totalAmount;
 
-            connection.on("RecviedCash", amount => { //
-                currentRecived += amount;
-                console.log("Cash Recived:" + currentRecived);
-                const cashReminderTemplate = document.getElementById('cashReminderTemplate');
-                const modalContent = cashReminderTemplate.innerHTML
-                    .replace('{{totalAmount}}', totalAmount)
-                    .replace('{{tableNumber}}', tableName)
-                    .replace('{{currentAmount}}', currentRecived);
-                modalWrapper.innerHTML = modalContent;
-                modalWrapper.classList.add('is-active');
-                if (currentRecived >= totalAmount) {
-                    document.getElementById("C2").disabled = false;
-                }
-            });
+        connection.on("PaperVerifying", verify => {
+            console.log("PaperVerifying" + verify);
+            if (verify == true) {
+                document.getElementById("C2").disabled = true;
+                document.getElementById("C3").disabled = true;
+            }else{
+                document.getElementById("C2").disabled = false;
+                document.getElementById("C3").disabled = false;
+            }
+        });
+
+        connection.on("RecviedCash", amount => { //
+            currentRecived += amount;
+            console.log("Cash Recived:" + currentRecived);
+            const cashReminderTemplate = document.getElementById('cashReminderTemplate');
+            const modalContent = cashReminderTemplate.innerHTML
+                .replace('{{totalAmount}}', totalAmount)
+                .replace('{{tableNumber}}', tableName)
+                .replace('{{currentAmount}}', currentRecived);
+            modalWrapper.innerHTML = modalContent;
+            modalWrapper.classList.add('is-active');
+            if (currentRecived >= totalAmount) {
+                document.getElementById("C2").disabled = false;
+            }
+        });
 
         buttons.forEach(function (button) {
             button.addEventListener('click', function () {
+                
                 waitForCheckoutCompletion = false;
                 tableNumber = button.getAttribute('table-number');
                 tableName = button.getAttribute('data-table-number');
+                hourlyRate = button.getAttribute('table-hour-rate');
+                
+                //預設費率為400元每小時
+                if (hourlyRate == null) {
+                    hourlyRate = 400;
+                }
+
                 const modalContent = modalTemplate.innerHTML
                     .replace('{{tableNumber}}', tableName);
+                
                 modalWrapper.innerHTML = modalContent;
                 modalWrapper.classList.add('is-active');
+                const labels = document.querySelectorAll('.opitionString[hourValue]');
+                labels.forEach((label) => {
+                    console.log('trying to get label');
+                    const labelNumber = label.getAttribute('hourValue');
+                    const opitionString = ` ${labelNumber}小時/${hourlyRate * labelNumber}元`;
+                    label.innerHTML.replace('{{opitionString}}', opitionString);
+                    label.innerText = opitionString;
+
+                });
                 console.log(tableNumber);
             });
         });
@@ -338,7 +472,6 @@
         var waitForCheckoutCompletion = false; // 使用 let 来声明变量
         var currentRecived;
 
-
         connection.on("CheckoutCompleted", (message) => {
             // 在此處顯示彈出視窗或其他通知方式，通知使用者結帳已完成
             console.log("結帳通知: " + message);
@@ -348,16 +481,19 @@
        
 
         document.addEventListener('click', async function (event) {
-
             //console.log(tableNumber + " " + selectedHourValue);
             if (event.target.classList.contains('is-C1')) {
                 console.log("c1 on clicked");
                 const selectedHourInput = document.querySelector('input[name="purchaseHours"]:checked');
                 if (selectedHourInput) {
-                    const selectedHourValue = parseInt(selectedHourInput.value);
-                    const hourlyRate = 400; //匯率
+                    
+                    const selectedHourValue = parseFloat(selectedHourInput.value);
+                    
+                    
+
                     totalAmount = selectedHourValue * hourlyRate;
-                    console.log(tableNumber + " " + selectedHourValue);
+                   
+                    console.log("選擇桌號:" + tableNumber + ",選擇時數" + selectedHourValue + ",費率:" + hourlyRate +",費用:"+totalAmount);
                     Checkout_1();   //開啟投幣&收鈔
                     waitForCheckoutCompletion = false;
                     console.log("C1");
@@ -368,22 +504,16 @@
                     while (!waitForCheckoutCompletion) {
                         //waitForCheckoutCompletion = true;// <---------------這行之後要註解掉 他決定了網頁是否要等待錢箱結帳完成
                         await new Promise(resolve => setTimeout(resolve, 100)); // 等待100毫秒后再次检查标志变量
-
                     }
 
                     if ( cancel == true) {
                        
                     }else{
-                        //傳送訂單訊息至資料庫
-                        CompleteOrder(tableNumber,tableName, selectedHourValue, hourlyRate, totalAmount);
                         //在接收到"結帳完成"通知后再开启继电器
                         StartTable(tableNumber, selectedHourValue);
-                        //列印收據
-                        //Recipt();
+                        //傳送訂單訊息至資料庫 以及列印收據
+                        CompleteOrder(tableNumber,tableName, selectedHourValue, hourlyRate, totalAmount);
                     }
-                    
-
-
 
                 } else {
                     console.log("請選擇時數後再結帳。");
@@ -393,8 +523,6 @@
 
         });
         var cancel = new Boolean(false);
-
-       
 
         // 打开现金机提示
         function openCashReminder(tableNumber, totalAmount) {
@@ -428,8 +556,6 @@
             //     openRefoundReminder(refoundAmount, tableNumber);
             // }
 
-            
-
         }
         document.addEventListener('click', function (event) {
 
@@ -444,7 +570,7 @@
                 openRefoundReminder(refoundAmount, tableNumber);
             }
             else if (event.target.classList.contains('is-C3')) {   
-                totalAmount = 0;    //取消結帳 設定帳單為零元 全額退款
+                totalAmount = 0;    //取消結帳 設定帳單為0元 全額退款
                 cancel = true;
                 messageType = 3;
                 console.log("c3 on clicked");
@@ -456,6 +582,7 @@
             }
 
         });
+
         let refoundAmount;
         var currentRefound;
         connection.on("PayoutCash", amount => {
@@ -516,7 +643,7 @@
 
             modalWrapper.innerHTML = modalContent;
             modalWrapper.classList.add('is-active');
-            updateRemainingTime(tableNumber);
+            updateRemainingTime(tableNumber,tableName);
         }
         // 在这里添加逻辑，等待waitForCheckoutCompletion为true，即收到“結帳完成”消息
         const waitForCheckout = async () => {
@@ -590,14 +717,12 @@
 
     function startCountdown(tableNumber,tableName, remainingTimeInSeconds) {
         // 创建一个计时器对象
-        
         const timer = {
             remainingTime: remainingTimeInSeconds,
             intervalId: setInterval(() => {
                 // 更新计时器显示
                 const timerElement = document.querySelector(`[table-number="${tableNumber}"] .timer`);
                 timerElement.innerHTML = formatRemainingTime(timer.remainingTime,tableNumber,tableName);
-
                 // 倒计时结束时清除计时器
                 if (timer.remainingTime <= 0) {
                     clearInterval(timer.intervalId);
@@ -607,19 +732,14 @@
                 }
             }, 1000)
         };
-
         return timer;
-        
     }
 
     // 格式化剩余时间为可读格式（例如，hh:mm:ss）
     function formatRemainingTime(remainingTimeInSeconds, tableNumber,tableName) { 
         let formatedtext = tableName;
-
-        if (remainingTimeInSeconds > 0) {
-//const btn = document.getElementById(tableNumber).style.borderColor= 'd1d100';
-            document.getElementById(tableNumber).style.borderColor = "#d1d100";
-
+        if (remainingTimeInSeconds > 0) {           
+            document.querySelector(`[table-number="${tableNumber}"]`).classList.add("on-using");
             formatedtext = ` ${tableName} (使用中)`;
             formatedtext = formatedtext.concat(`<br \> 剩餘時間: `);
             const hours = Math.floor(remainingTimeInSeconds / 3600);
@@ -635,9 +755,7 @@
                 formatedtext = formatedtext.concat(`${seconds}秒`);
             }
         }else {
-            //const btn = document.getElementById(tableNumber).style.borderColor= '00d1b2';
-            document.getElementById(tableNumber).style.borderColor = "#00d1b2";
-
+            document.querySelector(`[table-number="${tableNumber}"]`).classList.remove("on-using");
         }
         
         return formatedtext;
@@ -700,7 +818,7 @@
                 //    console.log("等待中...");
                 // 如果結帳未完成，可以選擇繼續等待或執行其他操作
                 //}
-                updateRemainingTime(tableNumber);
+                updateRemainingTime(tableNumber, tableName);
             } else {
                 console.log("API 回傳結果：等待結帳完成失敗");
             }
@@ -813,6 +931,7 @@
             console.log("剩餘紙鈔數量", result);
         }
     }
+         
     // async function Recipt() {
     //     fetch('/recipt', {
     //         method: 'POST',
@@ -821,6 +940,8 @@
     //         }
     //     }).then(response => response.json());
     // }
+
+
     
 
 </script>

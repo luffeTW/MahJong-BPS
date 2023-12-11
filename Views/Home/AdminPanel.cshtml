@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/bulma/css/bulma.min.css">
     <link rel="stylesheet" href="~/css/index.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/3.1.12/signalr.min.js"></script>
+    <script src="~/js/signalr.min.js"></script>
 
     <title>管理後台</title>
     <style>
@@ -21,7 +21,7 @@
 </head>
 <body>
     <header>
-        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script src="~/js/jquery-3.6.0.min.js"></script>
     </header>
     <div class="">
         <div class="tabs">
@@ -81,6 +81,14 @@
                             <option value="6">6號桌</option>
                             <option value="7">7號桌</option>
                             <option value="8">8號桌</option>
+                            <option value="9">9號桌</option>
+                            <option value="10">10號桌</option>
+                            <option value="11">11號桌</option>
+                            <option value="12">12號桌</option>
+                            <option value="13">13號桌</option>
+                            <option value="14">14號桌</option>
+                            <option value="15">15號桌</option>
+                            <option value="16">16號桌</option>
                         </select>
                     </label>
                 </div>
@@ -134,6 +142,24 @@
             <div class="block">
                 <a class="subtitle is-3">讀取錢箱</a>
                 <button class="cashbox button is-primary" id="cashbox" value="02">
+                    發送指令
+                </button>
+            </div>
+            <div class="block">
+                <a class="subtitle is-3">清空錢箱</a>
+                <button class="cashbox button is-primary" id="cashbox" value="13">
+                    發送指令
+                </button>
+            </div>
+            <div class="block">
+                <a class="subtitle is-3">關閉程式</a>
+                <button class="cashbox button is-primary" id="cashbox" value="EX">
+                    發送指令
+                </button>
+            </div>
+            <div class="block">
+                <a class="subtitle is-3">測試出單</a>
+                <button class="cashbox button is-primary" id="cashbox" value="TP">
                     發送指令
                 </button>
             </div>
@@ -398,6 +424,7 @@
 </body>
 
 </html>
+
 <script>
     // 当页面加载完成后执行
     $(document).ready(function () {
@@ -569,6 +596,14 @@
                         var value = document.getElementById("MHValue").value;
                         console.log("輸入數量：" + value);
                         MHDispense(value);
+                        break;
+                    case "TP":
+                        console.log("測試印表機");
+                        Recipt();
+                        break;
+                    case "EX":
+                        console.log("關閉伺服器");
+                        Exit();
                         break;
                     // case "82":
                     //     console.log("查詢硬幣儲量");
@@ -745,4 +780,21 @@
         }).then(response => response.json());
     }
 
+    async function Recipt() {
+        fetch('/recipt', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }).then(response => response.json());
+    }
+
+    async function Exit() {
+        fetch('/Exit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }).then(response => response.json());
+    }
 </script>
