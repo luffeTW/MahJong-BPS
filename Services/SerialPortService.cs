@@ -9,91 +9,85 @@ using System.Data;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Bson;
-using ESC_POS_USB_NET.Printer;
-using ESC_POS_USB_NET.EpsonCommands;
-using ESC_POS_USB_NET;
-using System.Text.Unicode;
-using System.Text.Encodings.Web;
-using System.Text.Json;
-using System.Net.Http;
-using System.Reflection.Metadata;
-using Serilog.Core;
-using System.Security.Cryptography.X509Certificates;
+using MahJongBPS;
+using MahJongBPS.Controllers;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using System.Runtime.CompilerServices;
+using static System.Net.Mime.MediaTypeNames;
 
-namespace Checkout.Services
+namespace MahJongBPS.Services
 {
-    
+
     public interface ISerialPortService
     {
+        void OnApplicationStopping();
         void OpenPort();
         void ClosePort();
         void PS100Write(string data);
-        void XC100Write(string command , int amount);
+        void XC100Write(string command, int amount);
+        Task MHWrite(string data);
         event EventHandler<string> DataReceived;
         void Checkout_1();
         void Checkout_2(int CheckoutAmount);
         void Checkout_3();
         void XC100StockUpdate(int amount, int method);
         int XC100StockScan();
-        void K837Transport(string data);
-        void K837Write(string data);
-        void K837WriteChinese(string data);
-        //void recipt();
+        Task MHdispense(int data);
+        void recipt(Int64 OrderId,string TableName, int TableId, Decimal Hours, int Amount, DateTime dateTime, int H);
+        void MHstockUpdate(int amount, int method);
+        void testrecipt();
     }
 
     public class SerialPortService : ISerialPortService
     {
-        //雲端生活家
-        private HttpClient _LifePlusClient;
-        public LoginApiResponse apiResponse;
-        private string _apiBaseUrl = "https://bossnet-apis-test.lifeplus.tw/v2";
-        private string _userId = "tm_100577@lifeplus.tw";   // 更使用者帳號
-        private string _password = "!tm_100577@#";          // 使用者密碼
-        private string _TM_Location_ID = "100577";          // 店家代碼
-        private string _dev_id = "3201611163";              // 設備代碼
-        private string _edc_id = "ED094110";                // EDC代碼
-        private string _seller_identifier = "23475909";     // 營業人統編
-        private string _version = "02";                     // 軟體版本號
+        private SerialPort PS100_serialPort;    //PS100板子
+        private SerialPort XC100_serialPort;    //出鈔機
+        private SerialPort MH_serialPort;       //出硬機
+        private SerialPort WP_K837_serialPort;  //印單機
 
-        private string _einv_ym = DateTime.Now.ToString("yyyy") + ((DateTime.Now.Month + 1) / 2 * 2).ToString();    //發票期別
-
-        public string _sid;
-
-        private SerialPort PS100_serialPort;
-        private SerialPort XC100_serialPort;
-        private SerialPort WP_K837_serialPort;
-        //private SerialPort MiniHopper_serialPort;
-      
         private readonly ILogger<SerialPortService> _logger;
         public event EventHandler<string> CheckoutCompleted;
         public event EventHandler<string> DataReceived;
         private readonly IHubContext<NotificationHub> _notificationHubContext;
         private Dictionary<string, HardwareCommands> fullCommandsMap = new Dictionary<string, HardwareCommands>();
+        private readonly TableController _tablecontroller;
+        private readonly IHostApplicationLifetime _lifetime;
 
-        
-        public SerialPortService(string portName, int baudRate, ILogger<SerialPortService> logger, IHubContext<NotificationHub> notificationHubContext)
+        public SerialPortService(string PS100PortName,string XC100PortName, string PrinterPortName,string HopperPortName, ILogger<SerialPortService> logger, IHubContext<NotificationHub> notificationHubContext, TableController tableController, IHostApplicationLifetime lifetime)
         {
-            
-            //初始化XC100串口設定
-            XC100_serialPort = new SerialPort("COM1");
-            XC100_serialPort.BaudRate = 9600;
-            XC100_serialPort.Parity = Parity.None;
-            XC100_serialPort.DataBits = 8;
-            XC100_serialPort.StopBits = StopBits.One;
-            XC100_serialPort.DataReceived += XC100_serialPort_DataReceived;
-
-            //初始化WP-K837崁入式印表機串口設定
-            WP_K837_serialPort = new SerialPort("COM11");
-            WP_K837_serialPort.BaudRate = 9600;
-            //WP_K837_serialPort.Parity = Parity.None;
-            //WP_K837_serialPort.DataBits = 8;
-            //WP_K837_serialPort.StopBits = StopBits.One;
-            //初始化Mini Hopper串口設定
-
+            _logger = logger;//注入log
+            _notificationHubContext = notificationHubContext; // 注入通知上下文
+            _tablecontroller = tableController; //注入TableController
+            _lifetime = lifetime;
+            _lifetime.ApplicationStopping.Register(OnApplicationStopping);
 
             //初始化PS100設定
-            PS100_serialPort = new SerialPort(portName, baudRate);
+            PS100_serialPort = new SerialPort(PS100PortName, 9600);
             PS100_serialPort.DataReceived += SerialPortDataReceived;
+            //初始化XC100串口設定
+            if (XC100PortName != "COM")
+            {
+                XC100_serialPort = new SerialPort(XC100PortName);
+                XC100_serialPort.BaudRate = 9600;
+                XC100_serialPort.Parity = Parity.None;
+                XC100_serialPort.DataBits = 8;
+                XC100_serialPort.StopBits = StopBits.One;
+                XC100_serialPort.DataReceived += XC100_serialPort_DataReceived;
+            }
+            //初始化Mini Hopper串口設定
+            if (HopperPortName != "COM")
+            {
+                MH_serialPort = new SerialPort(HopperPortName, 9600);
+                MH_serialPort.DataReceived += MH_serialPort_DataReceived;
+            }
+                       
+            //初始化WP-K837崁入式印表機串口設定
+            if (PrinterPortName != "COM")
+            {
+                WP_K837_serialPort = new SerialPort(PrinterPortName);
+                WP_K837_serialPort.BaudRate = 9600;
+            }
 
             //初始化服務設定
             try
@@ -103,435 +97,62 @@ namespace Checkout.Services
             catch (Exception ex)
             {
                 Console.WriteLine(ex.ToString());
-            }            
-            _logger = logger;//注入log
-            _notificationHubContext = notificationHubContext; // 注入通知上下文
+            }
 
             //初始化指令描述
             string jsonFilePath = "config/command.json"; // 請替換成 command.json 的實際路徑
             string jsonContent = File.ReadAllText(jsonFilePath);
             JObject commandData = JObject.Parse(jsonContent);
             LoadCommandsFromJson(jsonFilePath);
-
             Console.WriteLine("Service here");
-
-            _LifePlusClient = new HttpClient();
-            _LifePlusClient.BaseAddress = new Uri("https://bossnet-apis-test.lifeplus.tw/");
-
-            LifePlusLogin();
-            
-
-
-
+        }
+        public void OnApplicationStopping()
+        {
+            // 在应用程序停止时执行清理操作
+            _lifetime.StopApplication();
+            // 关闭串口、保存状态等
         }
 
-
-        
-
+       
         public void OpenPort()
         {
-            PS100_serialPort.Open();
-            //XC100_serialPort.Open();
-            WP_K837_serialPort.Open();
-        }
 
+            PS100_serialPort.Open();
+            if (XC100_serialPort != null)
+            {
+                XC100_serialPort.Open();
+            }
+            if (WP_K837_serialPort != null)
+            {
+                WP_K837_serialPort.Open();
+            }
+            if(MH_serialPort != null)
+            {
+                MH_serialPort.Open();
+                MHWrite("80");
+            }
+
+        }
+        
         public void ClosePort()
         {
             PS100_serialPort.Close();
-            //XC100_serialPort.Close();
-            WP_K837_serialPort.Close();
-        }
-
-        public void PrinterCut(bool full)
-        {
-            if (full)
+            if (XC100_serialPort != null)
             {
-                K837Transport("1D5600");
+                XC100_serialPort.Close();
             }
-            else
+            if (WP_K837_serialPort != null)
             {
-                K837Transport("1D5611");
+                WP_K837_serialPort.Close();
             }
-        }
-        public void K837WriteChinese(string data)
-        {
-            Encoding utf8 = Encoding.UTF8;
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-            var big5 = Encoding.GetEncoding(950);
-            byte[] utf8Bytes = utf8.GetBytes(data + "\n");
-            byte[] big5Bytes = Encoding.Convert(utf8, big5, utf8Bytes);
-            //Encoding big5 = Encoding.GetEncoding(1252);
-            //byte[] big5Bytes = big5.GetBytes(data);
-            if (WP_K837_serialPort.IsOpen)
+            if (MH_serialPort != null)
             {
-                _logger.LogInformation($"writed to WP_K837_serialPort: {data}");
-                //byte[] dataToSend = StringToByteArray(data);
-
-                try
-                {
-                    WP_K837_serialPort.Write(big5Bytes, 0, big5Bytes.Length);
-                    //PS100_serialPort.Write(dataToSend, 0, dataToSend.Length);
-                    //_logger.LogInformation($"K837 寫入: {BitConverter.ToString(dataToSend)}");
-                }
-                catch
-                {
-                    _logger.LogInformation("WP_K837_serialPort failed to write");
-                }
-            }
-            else
-            {
-                // 可以在串口未打开时进行适当的错误处理或记录日志
-                // 例如，记录日志并抛出异常，或者发送通知等
-                _logger.LogError("串口未打开，无法发送数据");
-            }
-        }
-        public void K837Transport(string data)
-        {
-            LifePlusEnvoice(200);
-
-            if (WP_K837_serialPort.IsOpen)
-            {
-                byte[] dataToSend = StringToByteArray(data);
-                _logger.LogInformation($"writed to WP_K837_serialPort: {dataToSend}");
-
-                try
-                { 
-                    WP_K837_serialPort.Write(dataToSend, 0, dataToSend.Length);
-                    //PS100_serialPort.Write(dataToSend, 0, dataToSend.Length);
-                    //_logger.LogInformation($"K837 寫入: {BitConverter.ToString(dataToSend)}");
-                }
-                catch
-                {
-                    _logger.LogInformation("WP_K837_serialPort failed to write");
-                }
-            }
-            else
-            {
-                // 可以在串口未打开时进行适当的错误处理或记录日志
-                // 例如，记录日志并抛出异常，或者发送通知等
-                _logger.LogError("串口未打开，无法发送数据");
-            }
-        }
-        
-
-        public async Task<string> LifePlusLogin()
-        {
-            var content = new FormUrlEncodedContent(new[]
-            {
-                new KeyValuePair<string, string>("userid", _userId),
-                new KeyValuePair<string, string>("passwd", _password),
-                new KeyValuePair<string, string>("TM_Location_ID", _TM_Location_ID),
-                new KeyValuePair<string, string>("dev_id", _dev_id),
-                new KeyValuePair<string, string>("edc_id", _edc_id),
-                new KeyValuePair<string, string>("seller_identifier", _seller_identifier),
-                new KeyValuePair<string, string>("ver", _version)
-            });
-
-            var response = await _LifePlusClient.PostAsync("api/adminV2/apiLogin", content);
-
-            if (response.IsSuccessStatusCode)
-            {
-                string responseBody = await response.Content.ReadAsStringAsync();
-                 apiResponse = JsonConvert.DeserializeObject<List<LoginApiResponse>>(responseBody).FirstOrDefault();
-                if (apiResponse != null)
-                {
-                    _logger.LogInformation("login api responsed");
-                    _sid = apiResponse.retVal;
-                    _logger.LogInformation($"SID:{_sid}");
-                    return apiResponse.retVal;
-                }
-            }
-
-            return null; // 或者根据失败情况返回其他适当的值
-        }
-
-        public async Task<string> LifePlusEnvoice(long n_TXN_Amount)
-        {
-            DateTime today = DateTime.Now;
-            _logger.LogInformation($"tryin to get envoice");
-            string n_TXN_Date_Time = $"{DateTime.Now.ToString("yyyy")}{today.Month.ToString().PadLeft(2, '0')}{today.Day.ToString().PadLeft(2, '0')}{today.Hour.ToString().PadLeft(2, '0')}{today.Minute.ToString().PadLeft(2, '0')}{today.Second.ToString().PadLeft(2,'0')}";
-            _logger.LogInformation($"n_TXN_Date_Time:{n_TXN_Date_Time}");
-
-            var content = new FormUrlEncodedContent(new[]
-            {
-                new KeyValuePair<string, string>("sid", _sid),
-                new KeyValuePair<string, string>("data", "[{"+
-                $"\"TM_Location_ID\": \"{_TM_Location_ID}\"" +
-                $",\"n_TXN_Date_Time\": \"{n_TXN_Date_Time}\"" +
-                $",\"einv_ym\": \"{_einv_ym}\"" +
-                $",\"n_Count\": 1" +
-                $",\"utf8\": 1"+
-                "}]")
-            });
-            
-            var response = await _LifePlusClient.PostAsync("api/einvoiceV2/txnqueryv08", content);
-            if (response.IsSuccessStatusCode)
-            {
-                string responseBody = await response.Content.ReadAsStringAsync();
-                _logger.LogInformation($"{responseBody}");
-                LifePlusEnvoiceResponse envoiceResponse = JsonConvert.DeserializeObject<List<LifePlusEnvoiceResponse>>(responseBody).FirstOrDefault();
-                _logger.LogInformation($"1");
-
-                //EInvoiceData eInvoiceData = JsonConvert.DeserializeObject<List<EInvoiceData>>(envoiceResponse.ToString()).FirstOrDefault();
-                //_logger.LogInformation($"2");
-
-                if (envoiceResponse != null)
-                {
-                    _logger.LogInformation($"2");
-
-                    string d12d = envoiceResponse.retVal.seller_Name;
-                    _logger.LogInformation($"{d12d}");
-                    foreach ( var einvoiceData in envoiceResponse.retVal.einv_datas)
-                    {
-                        string invoiceNumber = einvoiceData.Invoice_Number;
-                        string randomNumer = einvoiceData.RandomNumer;
-                        string qrCode = einvoiceData.QRCode;
-                        string printMark = einvoiceData.PrintMark;
-                        string carrierType1 = einvoiceData.CarrierType1;
-                        string carrierType2 = einvoiceData.CarrierType2;
-                        string npoban = einvoiceData.NPOBAN;
-                        recipt(invoiceNumber, randomNumer, qrCode,"",n_TXN_Amount);
-                        // 根据数据的具体需求执行逻辑或日志记录
-                        string Transdate = $"{today.Year}-{today.Month}-{today.Day} {today.TimeOfDay.ToString().Substring(0,14)}";
-                        _logger.LogInformation(Transdate);
-                        LifePlusUpload(2, Transdate, 200, invoiceNumber, randomNumer, qrCode, n_TXN_Date_Time);
-                    }
-
-
-                    return envoiceResponse.ToString();
-                }
-
-            }
-            return null;
-            _logger.LogInformation($"");
-        }
-        public async Task LifePlusUpload(long id,string TransDate,long n_TXN_Amount,string invoiceNumber,string RandomNumer,string QRCode,string n_TXN_Date_Time)
-        {
-            //支付類別 CA:現金 CR:信用卡 EC:悠遊卡 AL:支付寶 GA:橘子支 IP:iPass IC:iCash CP:折價券 CK:支票 GC:券類 LP:Line Pay RP:點數 AP:Apply Pay SP:Samsung Pay AN:Google Pay TW:Taiwan Pay JP:Jko Pay
-            string PaymentType = "CA";
-            //載具類別 EJ0002:無載具 3J0002:手機載具 1K0001:悠遊卡載具 2G0001:iCash 載具 CQ0001:自然人憑證載具 EK0002:信用卡載具 1H0001:一卡通載具
-            string CarrierType = "EJ0002";
-            //載具顯碼
-            string CarrierId1 = "";
-            //載具隱碼
-            string CarrierId2 = "";
-            //標示發票是否印出
-            string PrintMark = "Y";
-            //捐贈碼
-            string NPOBAN = "";
-            //應稅稅額合計：
-            long taxAmount = 10;
-
-            _logger.LogInformation($"n_TXN_Date_Time:{n_TXN_Date_Time}");
-            //_logger.LogInformation(TransDate);
-            var content = new FormUrlEncodedContent(new[]
-            {
-                new KeyValuePair<string, string>("sid", _sid),
-                new KeyValuePair<string, string>("data", "[{"+
-                $"\"TM_Location_ID\": \"{_TM_Location_ID}\"" +
-                $",\"n_Device_ID\": \"{_dev_id}\"" +
-                $",\"EDC_ID\": \"{_edc_id}\"" +
-                $",\"n_TXN_Date_Time\": \"{n_TXN_Date_Time}\"" +
-                $",\"buyer_Identifier\":\"0000000000\"" +
-                $",\"Invoice_Number\": \"{invoiceNumber}\"" +
-                $",\"Invoice_Type\": \"07\"" +
-                $",\"seller_Identifier\": \"{_seller_identifier}\"" +
-                $",\"CarrierType\": \"{CarrierType}\"" +
-                $",\"CarrierId1\": \"{CarrierId1}\"" +
-                $",\"CarrierId2\": \"{CarrierId2}\"" +
-                $",\"PrintMark\": \"{PrintMark}\"" +
-                $",\"NPOBAN\": \"{NPOBAN}\"" +
-                $",\"RandomNumber\": \"{RandomNumer}\"" +
-                $",\"QRCode\": \"{QRCode}\"" +
-                $",\"Items_CNT\": \"1\"" +
-                $",\"Items_ID\":[\"0001\"]" +
-                $",\"Items_SName\":[\"包台費\"]" +
-                $",\"Items_UnitPrice\":[\"{n_TXN_Amount}\"]" +
-                $",\"Items_Quantity\":[\"1\"]" +
-                $",\"Items_Taxtype\":[\"1\"]" +
-                $",\"Items_Taxrate\":[\"0.05\"]" +                
-                $",\"TaxAmount\": \"{taxAmount}\"" +
-                $",\"n_TXN_Amount\": \"{n_TXN_Amount}\"" +
-                "}]")
-            });
-
-            var response = await _LifePlusClient.PostAsync("api/einvoiceV2/txnupload", content);
-
-            if (response.IsSuccessStatusCode)
-            {
-                string responseBody = await response.Content.ReadAsStringAsync();
-                _logger.LogInformation($"{responseBody}");
-            }
-
-        }
-
-        public void recipt(string invoiceNumber, string randomNumer, string qrCode,string buyer_identifier,long n_TXN_Amount)
-        {
-            // 取得今天日期
-            DateTime today = DateTime.Today;
-            string time = DateTime.Now.TimeOfDay.ToString().Substring(0,8);
-            // 轉換為民國年，取得年份後扣掉1911
-            string YearTW = (today.Year - 1911).ToString();
-            // 將日期格式為YYYMMDD
-            string DateTW = YearTW + today.ToString("MMdd");
-            // 將字串補齊
-            //DateTW = DateTW.PadRight(7, '0');
-            //發票期別
-            int Period = (DateTime.Now.Month+1)/2 * 2;
-
-            string PeriodTitle =$"{YearTW}年{(Period-1).ToString().PadLeft(2, '0')}-{Period.ToString().PadLeft(2, '0')}月";
-            string PeriodCode = $"{YearTW}{Period.ToString().PadLeft(2,'0')}";
-
-            _logger.LogInformation(PeriodTitle);
-            _logger.LogInformation(PeriodCode);
-
-            //總計額(8碼)
-            string AmountString = n_TXN_Amount.ToString().PadLeft(8,'0');
-            //買方統編(8碼)
-            buyer_identifier = buyer_identifier.PadLeft(8, '0');
-            // 构建左侧二维码的内容
-            String leftQRContent = $"{invoiceNumber}{DateTW}{randomNumer}00000000{AmountString}{buyer_identifier}23475909{qrCode}:**********:1:0:1";
-            String rightQRContent = $"**:包台費:1:{n_TXN_Amount}";
-            //_logger.LogInformation(leftQRContent);
-            string barCode = $"{PeriodCode}{invoiceNumber}{randomNumer}";
-            //_logger.LogInformation(barCode);
-            int maxAllowedLength = 1;
-            String s_str1stQRCode = "AB112233441020523999900000145000001540987654312345678ydXZt4LAN1UHN/j1juVcRA==:**********:2:0:2:乾電池:1:105:口罩:1:210:牛奶:1:25";
-            String s_str2ndQRCode = "**:WPT810熱感式印表機:1:???:二維條碼若已記載完整明細資訊後，營業人可在此自行增加其他資訊";
-            // 如果左侧内容超出长度，需要分割填入右侧二维码
-            
-            
-            
-            //BinaryOut(512, (Int16)123, "222", 0x1B, Encoding.UTF8.GetBytes("大笨蛋"), Encoding.GetEncoding("Big5").GetBytes("大笨蛋"));
-
-            //String s_str1stQRCode = "AB112233441020523999900000145000001540987654312345678ydXZt4LAN1UHN/j1juVcRA==:**********:3:3:1:乾電池:1:105:口罩:1:210:牛奶:1:25";
-            //String s_str2ndQRCode = "**:WPT810熱感式印表機:1:???:二維條碼若已記載完整明細資訊後，營業人可在此自行增加其他資訊";
-            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-
-            EscPOS POSCmd = new EscPOS();
-
-            //Boolean s_bolAutoConnect = !ComPort.IsOpen;
-
-            //if (!OpenService(true)) { return; }
-
-            BinaryOut(POSCmd.StatusRealTime());
-
-            BinaryOut(POSCmd.Initialize());
-            BinaryOut(POSCmd.PageMode(true));
-
-            BinaryOut(POSCmd.Align(1));
-            BinaryOut(POSCmd.PrintNV(1));
-            BinaryOut(POSCmd.LineSpacing(7 * 8));
-
-            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes("電子發票證明聯"), POSCmd.CrLf());
-            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(true), Encoding.GetEncoding("Big5").GetBytes($"{PeriodTitle}"), POSCmd.CrLf());
-            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(true), Encoding.GetEncoding("Big5").GetBytes($"{invoiceNumber.Substring(0,2)}-{invoiceNumber.Substring(2)}"), POSCmd.CrLf());
-
-            BinaryOut(POSCmd.Align(0), POSCmd.LineSpacing(0));
-
-            BinaryOut(POSCmd.FontSize(0, 0), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"{today.Year}-{today.Month}-{today.Day}  {time}"), POSCmd.CrLf());
-            BinaryOut(POSCmd.FontSize(0, 0), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"隨機碼：{randomNumer}     總計：{n_TXN_Amount}"), POSCmd.CrLf());
-            BinaryOut(POSCmd.FontSize(0, 0), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"賣方12345678"), POSCmd.CrLf());
-            //BinaryOut(POSCmd.FontSize(0, 0), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"賣方12345678     買方{buyer_identifier}"), POSCmd.CrLf());
-
-            BinaryOut(POSCmd.Align(1));
-            BinaryOut(0x1d, 0x57, 0x87, 0x01);
-
-            BinaryOut(POSCmd.FeedDot(16));
-            BinaryOut(POSCmd.eReceiptBarCode(Encoding.GetEncoding("Big5").GetBytes(barCode), 64));
-            BinaryOut(POSCmd.FeedDot(16));
-
-            BinaryOut(POSCmd.Align(0));
-
-            BinaryOut(0x1b, "$", 40, 0, POSCmd.eReceiptQRCode(Encoding.UTF8.GetBytes(leftQRContent),9));
-
-            //BinaryOut(POSCmd.FeedDotBack(129));   //For QRCode V6
-            BinaryOut(POSCmd.FeedDotBack(167));
-
-            BinaryOut(0x1b, "$", 226, 0, POSCmd.eReceiptQRCode(Encoding.UTF8.GetBytes(rightQRContent),9));
-
-            BinaryOut(POSCmd.FeedDot(120), POSCmd.CutPartial());
-            //if (s_bolAutoConnect) OpenService(false);
-
-        }
-
-        public class LifePlusInfo
-        {
-            public string userid  { get; set; }
-            
-        }
-        public class order
-        {
-            public string ItemName { get; set; }
-            public int ItemAmount { get; set; }
-            public int OrderTotal { get; set; }
-        }
-        public class LoginApiResponse
-        {
-            public string retVal { get; set; }
-            public int retCode { get; set; }
-            public List<object> settings { get; set; }
-        }
-
-        public class EInvoiceData
-        {
-            public string Invoice_Number { get; set; }
-            public string RandomNumer { get; set; }
-            public string QRCode { get; set; }
-            public string PrintMark { get; set; }
-            public string CarrierType1 { get; set; }
-            public string CarrierType2 { get; set; }
-            public string NPOBAN { get; set; }
-        }
-
-        public class LifePlusEnvoiceResponse
-        {
-            public class EnvoiceRetval
-            {
-                public string shop_Name { get; set; }
-                public string seller_Name { get; set; }
-                public string seller_Identifier { get; set; }
-                public string CarrierType { get; set; }
-                public string seller_Address { get; set; }
-                public List<EInvoiceData> einv_datas { get; set; }
-            }
-
-            public EnvoiceRetval retVal { get; set; }
-            public int retCode { get; set; }
-        }
-        public class EInvoiceInfo
-        {
-            public string LeftQRCode { get; set; }
-            public string RightQRCode { get; set; }
-        }
-        public void K837Write(string data)
-        {
-            if (WP_K837_serialPort.IsOpen)
-            {
-                _logger.LogInformation($"writed to WP_K837_serialPort: {data}");
-                //byte[] dataToSend = StringToByteArray(data);
-                byte[] datatosend = Encoding.ASCII.GetBytes(data);
-
-                try
-                {
-                    WP_K837_serialPort.Write(datatosend, 0, datatosend.Length);
-                    //PS100_serialPort.Write(dataToSend, 0, dataToSend.Length);
-                    //_logger.LogInformation($"K837 寫入: {BitConverter.ToString(dataToSend)}");
-                }
-                catch
-                {
-                    _logger.LogInformation("WP_K837_serialPort failed to write");
-                }
-            }
-            else
-            {
-                // 可以在串口未打开时进行适当的错误处理或记录日志
-                // 例如，记录日志并抛出异常，或者发送通知等
-                _logger.LogError("串口未打开，无法发送数据");
+                MH_serialPort.Close();
             }
         }
 
-        public void XC100Write(string command , int amount)
+
+        public void XC100Write(string command, int amount)
         {
 
             // 构建数据帧
@@ -548,7 +169,7 @@ namespace Checkout.Services
 
             // 添加指令 (CMD)
             dataBytes[3] = (byte)command[0];
-            dataBytes[4] = 0x30; 
+            dataBytes[4] = 0x30;
             // 添加数据字段 (DATA1 DATA2 DATA3)
             for (int i = 0; i < 3; i++)
             {
@@ -591,6 +212,18 @@ namespace Checkout.Services
         //購買按鈕
         public void Checkout_1()
         {
+
+            _logger.LogInformation("\r\n");
+            _logger.LogInformation("開始現金接收");
+            _logger.LogInformation("\r\n");
+            
+            //開啟現金設備
+            PS100Write(GenerateFullCommand("04", 0, 0));      //開啟紙鈔機
+            System.Threading.Thread.Sleep(250);
+            PS100Write(GenerateFullCommand("03", 0, 0));      //開啟投幣器
+            //System.Threading.Thread.Sleep(250);
+            //PS100Write(GenerateFullCommand("02", 0, 0));      //獲取暫存器狀態
+
             //退款金額歸零
             PayoutValue = 0;
             //已投入金額歸零
@@ -600,23 +233,58 @@ namespace Checkout.Services
             CoinAmount = 0;
             PaperAmount = 0;
             TotalAmount = 0;
-            //開啟現金設備
-            PS100Write(GenerateFullCommand("03", 0, 0));      //開啟投幣器
-            System.Threading.Thread.Sleep(100);
-            PS100Write(GenerateFullCommand("04", 0, 0));      //開啟紙鈔機
+
         }
         int PayoutValue = 0;
+        bool CoinComplete = false; //確認投幣機是否正確關閉-若沒有完全關閉就無法出幣
         //結帳按鈕
-        public void Checkout_2(int CheckoutAmount)
-        {            
+        public async void Checkout_2(int CheckoutAmount)
+        {
+            CoinComplete = false;
+            PS100Write(GenerateFullCommand("05", 0, 0));      //關閉投幣器
+            //等待CoinComplete 為true才能繼續
+            if(CoinReceivedAmount > 0) //如果有投幣等待設置HOPPER的訊息
+            {
+                int WaitState = 0;
+                while (!CoinComplete)
+                {
+                    if (WaitState >= 250)
+                    {
+                        CoinComplete = true;
+                        _logger.LogError("[P20001]硬幣機訊息回傳逾時");
+                    }
+                    WaitState += 1;
+                    //Console.Write(".");
+                    await Task.Delay(100);
+                    
+                }
+                
+                _logger.LogInformation($"[0x08] 回應時間花費: {WaitState*100}毫秒");
+
+            }
+            else
+            {
+                System.Threading.Thread.Sleep(250);
+            }
             //設定出鈔的設備 1:PS100 2:XC100
-            int PaperMode = 2;
+            //設定出幣的設備 1:PS100 2:Mini Hopper
+            int PaperMode = 1;
+            int CoinMode = 1;
             //計算找零金額
             int PayoutAmount = ReceivedAmount + CoinReceivedAmount - CheckoutAmount;
             PayoutValue = PayoutAmount;
-            _logger.LogInformation($"PayoutAmount:{PayoutAmount},ReceivedAmount:{ReceivedAmount} ,CoinReceivedAmount:{CoinReceivedAmount} ,CheckoutAmount:{CheckoutAmount}");
+            _logger.LogInformation("\r\n");
+            _logger.LogInformation($"開始結帳 找零 訂單金額:{CheckoutAmount}元");
+            _logger.LogInformation($"         投入金額:{ReceivedAmount + CoinReceivedAmount}元");
+            _logger.LogInformation($"         應找金額:{PayoutAmount}元");
+            _logger.LogInformation("\r\n");
+
+            PS100Write(GenerateFullCommand("02", 0, 0));      //獲取暫存器狀態
+
+            System.Threading.Thread.Sleep(250);
+            //_logger.LogInformation($"PayoutAmount:{PayoutAmount},ReceivedAmount:{ReceivedAmount} ,CoinReceivedAmount:{CoinReceivedAmount} ,CheckoutAmount:{CheckoutAmount}");
             //驗證是否已完成找零 -- 若 找零狀態 == 找零金額 就傳送 "結帳完成"
-            if ( TotalAmount == PayoutValue)
+            if (TotalAmount == PayoutValue)
             {
                 OnCheckoutCompleted(this, "結帳完成");
             }
@@ -625,13 +293,32 @@ namespace Checkout.Services
             int PayoutCoin = 0;
             if (PayoutPaper > 0)
             {
-                _logger.LogInformation($"找鈔 {PayoutPaper*100}元");
+
+                //_logger.LogInformation($"找鈔 {PayoutPaper * 100}元");
                 if (PaperMode == 1)       //--使用PS100出鈔
                 {
-                    PS100Write(GenerateFullCommand("10", PayoutPaper*100, 0));
+                    int Payout500 = PayoutPaper / 5;
+                    int Payout100 = PayoutPaper % 5;
+                    if (Payout500 > catche500)
+                    {
+                        _logger.LogInformation("500鈔 儲存量不足");
+                        Payout100 += (Payout500-catche500) * 5;
+                        Payout500 = catche500;
+                    }
+                    if(Payout100 > catche100)
+                    {
+                        PayoutCoin += (Payout100 - catche100) * 100;
+                        Payout100 = catche100;
+                        _logger.LogInformation($"100鈔 儲存量不足 出幣遞補{PayoutCoin}"); 
+                    }
+                    PayoutPaper = Payout100 + Payout500*5;
+                    //_logger.LogInformation($"PS100暫存器 100元: {catche100}張    500: {catche500}張");
+                    //_logger.LogInformation($"PS100出鈔   100元: {Payout100}張    500: {Payout500}張");
+                    _logger.LogInformation($"PS100 寫入:[出鈔]{PayoutPaper}元" + "\r\n");
+                    PS100Write(GenerateFullCommand("10", PayoutPaper * 100, 0));
                     System.Threading.Thread.Sleep(1000);
                 }
-                else if(PaperMode == 2)   //--使用XC100出鈔
+                else if (PaperMode == 2)   //--使用XC100出鈔
                 {
                     if (PayoutPaper > XC100Stock)
                     {
@@ -639,19 +326,28 @@ namespace Checkout.Services
                         PayoutPaper = XC100Stock;
                         _logger.LogInformation("鈔票儲存量不足找零金額");
                     }
+                    _logger.LogInformation($"XC100 寫入:[出鈔]{PayoutPaper * 100}元" + "\r\n");
                     XC100Write("B", PayoutPaper);
+
                 }
             }
             //出幣
             PayoutCoin += PayoutAmount % 100;
             if (PayoutCoin > 0)
             {
-                PS100Write(GenerateFullCommand("11", PayoutCoin, 0));
-                _logger.LogInformation($"找零錢 {PayoutCoin}元");
-                System.Threading.Thread.Sleep(1000);
+                if(CoinMode == 1)
+                {
+                    PS100Write(GenerateFullCommand("11", PayoutCoin, 0));
+                    _logger.LogInformation($"PS100 寫入:[出幣]{PayoutCoin}元" + "\r\n");
+                    System.Threading.Thread.Sleep(1000);
+                }else if(CoinMode == 2)
+                {
+                    MHdispense(PayoutCoin/10);
+                    _logger.LogInformation($"MH-3  寫入:[出幣]{PayoutCoin}元" + "\r\n");
+                }
+
             }
-            PS100Write(GenerateFullCommand("05", 0, 0));      //關閉投幣器
-            System.Threading.Thread.Sleep(250);
+            
             PS100Write(GenerateFullCommand("06", 0, 0));        //關閉紙鈔機
             //已投入金額歸零
             ReceivedAmount = 0;
@@ -664,8 +360,13 @@ namespace Checkout.Services
         //取消按鈕
         public void Checkout_3()
         {
-            _logger.LogInformation($"ReceivedAmount:{ReceivedAmount} ,CoinReceivedAmount:{CoinReceivedAmount}");
-            
+
+            _logger.LogInformation("\r\n");
+            _logger.LogInformation( "取消結帳");
+            _logger.LogInformation("\r\n");
+
+            //_logger.LogInformation($"ReceivedAmount:{ReceivedAmount} ,CoinReceivedAmount:{CoinReceivedAmount}");
+
             if (ReceivedAmount > 0)
             {
                 int PayoutPaper = (ReceivedAmount / 100);
@@ -694,7 +395,7 @@ namespace Checkout.Services
         //更新XC100儲量
         public void XC100StockUpdate(int amount, int Method)
         {
-            
+
             if (Method == 1)
             {
                 XC100Stock += amount;
@@ -716,13 +417,13 @@ namespace Checkout.Services
         {
             if (PS100_serialPort.IsOpen)
             {
-                _logger.LogInformation($"writed to PS100 serial port: {data}");
+                _logger.LogInformation($"PS100 寫入:[{data}]");
                 byte[] dataToSend = StringToByteArray(data);
                 try
                 {
                     PS100_serialPort.Write(dataToSend, 0, dataToSend.Length);
                 }
-                catch 
+                catch
                 {
                     _logger.LogInformation("PS100 failed to write");
                 }
@@ -732,17 +433,41 @@ namespace Checkout.Services
                 _logger.LogError("串口異常,無法打開");
             }
         }
+        
+        private void MH_serialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
+        {
+            byte[] dataBytes = ReadDataAsBytes(MH_serialPort);
+            string data = string.Join(" ", dataBytes.Select(b => b.ToString("X2"))); // 使用空格分隔并转为十六进制字符串
+            _logger.LogInformation(data);
+            string accept = "02";
+            string reject = "0F";
+            string dispense = "10";
+            string cancel = "11";
+            string completed = "3E";
+            if (data == accept)
+            {
+                MHWrite(dispense);
+            }
+            else if (data == reject)
+            {
+                MHWrite(cancel);
+            }else if(data == completed)
+            {
+                DispenseCompleted = true;
+                Console.WriteLine("DispenseCompleted = true;");
+            }
+        }
 
         private string XC100buffer;
         private void XC100_serialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             byte[] dataBytes = ReadDataAsBytes(XC100_serialPort);
             string data = string.Join(" ", dataBytes.Select(b => b.ToString("X2"))); // 使用空格分隔并转为十六进制字符串
-            XC100buffer += data+" ";
+            XC100buffer += data + " ";
             if (XC100buffer.Contains("02") && XC100buffer.Contains("03"))
             {
                 _logger.LogInformation($"XC100 回傳: {XC100buffer}");
-                string commandByte = XC100buffer.Substring(9,2);
+                string commandByte = XC100buffer.Substring(9, 2);
                 string dataByte1 = XC100buffer.Substring(22, 1);
                 string dataByte2 = XC100buffer.Substring(19, 1);
                 string dataByte3 = XC100buffer.Substring(16, 1);
@@ -753,9 +478,9 @@ namespace Checkout.Services
                     dataString += dataByte3;
                     dataString += dataByte2;
                     dataString += dataByte1;
-                    
+
                 }
-                else if(dataByte2 != "0")
+                else if (dataByte2 != "0")
                 {
                     dataString += dataByte2;
                     dataString += dataByte1;
@@ -769,20 +494,148 @@ namespace Checkout.Services
                 {
                     case "62":
                         _logger.LogInformation($"XC100 出鈔: {dataString}次");
-                        XC100Stock -= Int32.Parse(dataString) ;
+                        XC100Stock -= Int32.Parse(dataString);
                         _logger.LogInformation($"XC100 剩餘: {XC100Stock}張");
                         break;
                 }
                 XC100buffer = "";
             }
-            else if(XC100buffer.Contains("06"))
+            else if (XC100buffer.Contains("06"))
             {
                 _logger.LogInformation($"XC100 回傳: {XC100buffer}");
                 XC100buffer = "";
             }
         }
 
-        private string receiveBuffer = "";
+        int MHstock = 0;
+        public void MHstockUpdate(int amount , int method)
+        {
+            if (method == 1)
+            {
+                MHstock += amount;
+            }
+            else
+            {
+                MHstock = amount;
+            }
+            _logger.LogInformation($"已更新硬幣儲存量: {MHstock}枚");
+        }
+
+        bool DispenseCompleted = false;
+        public async Task MHdispense(int data)
+        {
+            DispenseCompleted = false;
+            if (data <= 10 && data >= 1)
+            {
+                MHWrite("81");
+                Thread.Sleep(100);
+                MHWrite((data+39).ToString());
+                _logger.LogInformation($"出幣機出幣:{data}枚");
+                DispenseCompleted = false;
+                while (!DispenseCompleted)
+                {
+                    //waitForCheckoutCompletion = true;// <---------------這行之後要註解掉 他決定了網頁是否要等待錢箱結帳完成
+                    //await new Promise(resolve => setTimeout(resolve, 100)); // 等待100毫秒后再次检查标志变量
+                    Console.Write(".");
+                    await Task.Delay(100);
+                }
+                MHstock -= data;
+                _logger.LogInformation($"完成出幣:10枚  出幣機剩餘:{MHstock}枚");
+
+                CoinAmount += data * 10;
+                TotalAmount = PaperAmount + CoinAmount; 
+                OnCashedOut(this, data * 10);
+                if (TotalAmount == PayoutValue)
+                {
+                    OnCheckoutCompleted(this, "結帳完成");
+                }
+
+            }
+            else if(data > 10)
+            {
+                _logger.LogInformation($"總共出幣:{data}枚");
+                DispenseCompleted = false;
+                int j = (data / 10);
+                for (int i = 0; i <  j; i++)
+                {
+                    MHWrite("81");
+                    Thread.Sleep(100);
+                    MHWrite("49");
+                    _logger.LogInformation($"出幣機出幣:10枚");
+                    DispenseCompleted = false;
+                    while (!DispenseCompleted)
+                    {
+                        //waitForCheckoutCompletion = true;// <---------------這行之後要註解掉 他決定了網頁是否要等待錢箱結帳完成
+                        //await new Promise(resolve => setTimeout(resolve, 100)); // 等待100毫秒后再次检查标志变量
+                        Console.Write(".");
+                        await Task.Delay(100);
+                    }
+                    MHstock -= 10;
+                    _logger.LogInformation($"完成出幣:10枚  出幣機剩餘:{MHstock}枚");
+                    CoinAmount += 10 * 10;
+                    TotalAmount = PaperAmount + CoinAmount;
+                    OnCashedOut(this, 10 * 10);
+
+                    if (TotalAmount == PayoutValue)
+                    {
+                        OnCheckoutCompleted(this, "結帳完成");
+                    }
+
+                }
+                data = data % 10;
+                MHWrite("81");
+                Thread.Sleep(100);
+                MHWrite((data + 39).ToString());
+                _logger.LogInformation($"出幣機出幣:{data}枚");
+                DispenseCompleted = false;
+                while (!DispenseCompleted)
+                {
+                    //waitForCheckoutCompletion = true;// <---------------這行之後要註解掉 他決定了網頁是否要等待錢箱結帳完成
+                    //await new Promise(resolve => setTimeout(resolve, 100)); // 等待100毫秒后再次检查标志变量
+                    Console.Write(".");
+                    await Task.Delay(100);
+                }
+                MHstock -= data;
+                _logger.LogInformation($"完成出幣:10枚  出幣機剩餘:{MHstock}枚");
+                CoinAmount += data * 10;
+                TotalAmount = PaperAmount + CoinAmount; 
+                OnCashedOut(this, data * 10);
+                if (TotalAmount == PayoutValue)
+                {
+                    OnCheckoutCompleted(this, "結帳完成");
+                }
+
+            }
+            else
+            {
+                _logger.LogInformation($"出幣機出幣:[輸入數必須大於一]");
+            }
+            
+        }
+        public async Task MHWrite(string data)
+        {
+            
+            if (MH_serialPort.IsOpen)
+            {
+                _logger.LogInformation($"Mini Hopper 寫入:[{data}]");
+                byte[] dataToSend = StringToByteArray(data);
+                try
+                {
+                    MH_serialPort.Write(dataToSend, 0, dataToSend.Length);
+                }
+                catch
+                {
+                    _logger.LogInformation("PS100 failed to write");
+                }
+            }
+            else
+            {
+                _logger.LogError("串口異常,無法打開");
+            }
+            
+        }
+
+        private  string receiveBuffer = "";
         int CheckOutValue = 0;
         private void SerialPortDataReceived(object sender, SerialDataReceivedEventArgs e)
         {
@@ -793,9 +646,10 @@ namespace Checkout.Services
             while (receiveBuffer.Contains("@") && receiveBuffer.Contains("~"))
             {
                 string completeData = receiveBuffer.Substring(receiveBuffer.IndexOf("@"));
-                int endIndex = receiveBuffer.IndexOf("~");              
+                int endIndex = receiveBuffer.IndexOf("~");
                 //轉十六進制
                 string hexData = ConvertToHex(completeData);
+
                 //獲得訊息來源
                 if (hexData.Length > 6)
                 {
@@ -804,41 +658,45 @@ namespace Checkout.Services
                     string commandByte = hexData.Substring(8, 2);
                     //格式化訊息
                     string formattedData = FormatHexData(hexData);
+                    
                     //string commandString;
                     _logger.LogInformation($"PS100 回傳:[0x{commandByte}][{commandSource}]:[{formattedData}]");
+
                     //判斷訊息來源是否為PS100
                     if (commandSource == "01")
                     {
-                    response(commandByte);
-
-                    //判斷指令類型
-                    switch (commandByte)
-                    {
-                        case "22":
-                            UpdatePaperData(hexData);
-                            break;
-
-                        case "23":
-                            UpdateCoinData(hexData);
-                            break;
-
-                        case "24":
-                            ReadPaper(hexData);
-                            break;
-
-                        case "25":
-                            ReadCoin(hexData);
-                            break ;
-                        case "C0":
-                            CoinCount(hexData);
-                            break;
-                        case "C1":
-                            PaperCount(hexData);
-                            break;
-                        default:
-                            // 未知的訊息類型，不做任何處理
-                            break;
-                    }
+                        response(commandByte, commandSource);
+                        //判斷指令類型
+                        switch (commandByte)
+                        {
+                            case "08":
+                                SetCoin(hexData);
+                                break;
+                            case "11":
+                                CoinOut(hexData);
+                                break;
+                            case "22":
+                                UpdatePaperData(hexData);
+                                break;
+                            case "23":
+                                UpdateCoinData(hexData);
+                                break;
+                            case "24":
+                                ReadPaper(hexData);
+                                break;
+                            case "25":
+                                ReadCoin(hexData);
+                                break;
+                            case "C0":
+                                CoinCount(hexData);
+                                break;
+                            case "C1":
+                                PaperCount(hexData);
+                                break;
+                            default:
+                                // 未知的訊息類型，不做任何處理
+                                break;
+                        }
                     }
                     else
                     {
@@ -868,8 +726,8 @@ namespace Checkout.Services
                 {
                     CheckOutValue = 0;
                     PS100Write("40 02 00 00 06 F8 7F 7E");//關閉紙鈔機
-                    
-                    OnCheckoutCompleted(this,"結帳完成");
+
+                    OnCheckoutCompleted(this, "結帳完成");
                 }
                 // 从缓冲区中移除已处理的数据
                 receiveBuffer = receiveBuffer.Substring(endIndex + 1);
@@ -890,6 +748,50 @@ namespace Checkout.Services
             _logger.LogInformation(message + "\r\n");
             // 通知 NotificationHub
             _notificationHubContext.Clients.All.SendAsync("CheckoutCompleted", message);
+        }
+        private void OnRecivedCash(object sender,int RecivedCash)
+        {
+            //_logger.LogInformation($"收錢: {RecivedCash}元" + "\r\n");
+            if (RecivedCash >= 100)
+            {
+                _logger.LogInformation($"      收鈔            一張{RecivedCash}元" + "\r\n");
+            }
+            else
+            {
+                _logger.LogInformation($"      收幣 一枚{RecivedCash}元" + "\r\n");
+
+            }
+            // 通知 NotificationHub
+            _notificationHubContext.Clients.All.SendAsync("RecviedCash", RecivedCash);
+        }
+
+        private void OnCashedOut(object send,int CashedAmount)
+        {
+            //_logger.LogInformation($"找錢: {CashedAmount}元" + "\r\n");
+            if(CashedAmount >= 100)
+            {
+                _logger.LogInformation($"      出鈔            一張{CashedAmount}元" + "\r\n");
+            }
+            else
+            {
+                _logger.LogInformation($"      出幣            一枚{CashedAmount}元" + "\r\n");
+
+            }
+            // 通知 NotificationHub
+            _notificationHubContext.Clients.All.SendAsync("PayoutCash", CashedAmount);
+        }
+
+        private void OnPaperVerifing(object sender, bool Verify)
+        {
+            if (Verify)
+            {
+                _logger.LogInformation($"[紙鈔驗證中]");
+            }
+            else
+            {
+                _logger.LogInformation($"[紙鈔驗證完成]");
+            }
+            _notificationHubContext.Clients.All.SendAsync("PaperVerifying",Verify);
         }
 
         private byte[] ReadDataAsBytes(SerialPort port)
@@ -938,20 +840,42 @@ namespace Checkout.Services
             return formattedData.ToString().TrimEnd();
         }
 
-        private void response(string data)
+        private void response(string data, string commandSource)
         {
-            string selectedHardware = "PS100 English";
+            string selectedHardware = "PS100 中文";
             string shortCommand = "0x" + data;
 
             if (fullCommandsMap.ContainsKey(selectedHardware) &&
                 fullCommandsMap[selectedHardware].Commands.ContainsKey(shortCommand))
             {
                 string description = fullCommandsMap[selectedHardware].Commands[shortCommand];
-                string formattedData = $"[{shortCommand}]: {description} "  ;
-                _logger.LogInformation(formattedData);
+                string formattedData = $"PS100 回傳:[{shortCommand}][{commandSource}]:[{description}]";
+                _logger.LogInformation($"{formattedData}\r\n");
             }
         }
-
+        bool state11 = false,state02 = false;
+        private void SetCoin(string data)   //0x08
+        {
+            string state = data.Substring(10, 2);
+            if (state == "02")
+            {
+                CoinComplete = true;
+                
+            }
+           
+        }
+        private void CoinOut(string data) //0x11
+        {
+            string state =data.Substring(14, 2);
+            if(state == "E1")
+            {
+                _logger.LogError("[P00001]PS100出幣回傳錯誤訊息");
+            }
+            else if(state =="E2")
+            {
+                _logger.LogError("[P00001]PS100出幣回傳錯誤訊息");
+            }                          
+        }
         private void ReadCoin(string data)
         {
             if (data.Length >= 28) // 確保資料長度足夠
@@ -971,10 +895,12 @@ namespace Checkout.Services
             }
         }
 
+        int catche100 = 0;
+        int catche500 = 0;
         private void ReadPaper(string data)
         {
-            int catche100 = Convert.ToInt32(data.Substring(12, 2), 16);
-            int catche500 = Convert.ToInt32(data.Substring(20, 2), 16);
+            catche100 = Convert.ToInt32(data.Substring(12, 2), 16);
+            catche500 = Convert.ToInt32(data.Substring(20, 2), 16);
             int oneHundred = Convert.ToInt32(data.Substring(52, 2), 16);
             int fiveHundred = Convert.ToInt32(data.Substring(60, 2), 16);
             int oneThousand = Convert.ToInt32(data.Substring(64, 2), 16);
@@ -982,7 +908,7 @@ namespace Checkout.Services
             _logger.LogInformation(formattedData);
         }
 
-        private void UpdateCoinData(string data)
+        private void UpdateCoinData(string data)    //0x23收幣狀態
         {
             if (data.Length >= 28) // 確保資料長度足夠
             {
@@ -995,18 +921,22 @@ namespace Checkout.Services
 
                 // 將硬幣數量顯示在 richTextBox2
                 string formattedData = $"投幣機收幣 目前{sum}元  一元:{oneYuan}枚 五元:{fiveYuan}枚 十元:{tenYuan}枚 五十元:{fiftyYuan}枚";
+                _logger.LogInformation(formattedData);
+                OnRecivedCash(this, sum-CoinReceivedAmount);
                 CoinReceivedAmount = sum;
                 // 在 UI 執行緒上更新 richTextBox2
-                _logger.LogInformation(formattedData);
+                
             }
         }
+
         int BeforeAmount;
         int AfterAmount;
-        bool before = false, after=false;
-        private void UpdatePaperData(string data) //0x22收鈔狀態
+        bool before = false, after = false;
+        private void UpdatePaperData(string data)   //0x22收鈔狀態
         {
+
             string StateByte = data.Substring(10, 2);
-            string State = "";      
+            string State = "";
 
             switch (StateByte)
             {
@@ -1017,34 +947,40 @@ namespace Checkout.Services
                     State = "收鈔前";
                     break;
             }
+
             if (data.Length >= 28) // 確保資料長度足夠
             {
-                int catche100 = Convert.ToInt32(data.Substring(12, 2), 16);
-                int catche500 = Convert.ToInt32(data.Substring(16, 2), 16);
+                int currentCatche100 = Convert.ToInt32(data.Substring(12, 2), 16);
+                int currentCatche500 = Convert.ToInt32(data.Substring(16, 2), 16);
                 int oneHundred = Convert.ToInt32(data.Substring(32, 2), 16);
                 int fiveHundred = Convert.ToInt32(data.Substring(36, 2), 16);
                 int oneThousand = Convert.ToInt32(data.Substring(38, 2), 16);
+                
                 if (StateByte == "01")
                 {
-                    AfterAmount = oneHundred * 100 + fiveHundred*500+ oneThousand*1000 + catche100*100 + catche500*500;
-                    string formattedData = $"[{State}]目前紙鈔暫存器          一百元:{catche100} 五百元:{catche500}" + "\r\n" + $"                       目前紙鈔箱 目前{AfterAmount}元  一百元:{oneHundred} 五百元:{fiveHundred} 一千元:{oneThousand}";
+                    AfterAmount = oneHundred * 100 + fiveHundred * 500 + oneThousand * 1000 + currentCatche100 * 100 + currentCatche500 * 500;
+                    string formattedData = $"[{State}]目前收鈔紙鈔暫存器      一百元:{currentCatche100} 五百元:{currentCatche500}" + "\r\n" + $"                       目前紙鈔箱 目前{AfterAmount}元  一百元:{oneHundred} 五百元:{fiveHundred} 一千元:{oneThousand}";
+                    OnPaperVerifing(this, false);
                     _logger.LogInformation(formattedData);
                     if (before = true)    //驗證使否卡鈔
                     {
                         after = true;
                     }
                 }
-                else if(StateByte == "02")
+                else if (StateByte == "02")
                 {
-                    BeforeAmount = oneHundred * 100 + fiveHundred * 500 + oneThousand * 1000 +catche100 * 100 + catche500 * 500;
-                    string formattedData = $"[{State}]目前紙鈔暫存器         一百元:{catche100} 五百元:{catche500}" + "\r\n" + $"                       目前紙鈔箱 目前{BeforeAmount}元  一百元:{oneHundred} 五百元:{fiveHundred} 一千元:{oneThousand}";
+                    BeforeAmount = oneHundred * 100 + fiveHundred * 500 + oneThousand * 1000 + currentCatche100 * 100 + currentCatche500 * 500;
+                    string formattedData = $"[{State}]目前紙鈔暫存器         一百元:{currentCatche100} 五百元:{currentCatche500}" + "\r\n" + $"                       目前紙鈔箱 目前{BeforeAmount}元  一百元:{oneHundred} 五百元:{fiveHundred} 一千元:{oneThousand}";
+                    OnPaperVerifing(this, true);
                     _logger.LogInformation(formattedData);
                     before = true;
                 }
                 if (before && after)
                 {
                     ReceivedAmount += AfterAmount - BeforeAmount;
-                    _logger.LogInformation($"        收款金額:{ReceivedAmount} 收款前:{BeforeAmount} 收款後:{AfterAmount}" + "\r\n");
+                    _logger.LogInformation("\r\n");
+                    _logger.LogInformation(  $"收款金額:{ReceivedAmount} 收款前:{BeforeAmount} 收款後:{AfterAmount}" );
+                    OnRecivedCash(this, AfterAmount - BeforeAmount);
                     AfterAmount = 0;
                     BeforeAmount = 0;
                     before = false;
@@ -1052,34 +988,65 @@ namespace Checkout.Services
                 }
             }
         }
+
         int TotalAmount = 0;
         int CoinAmount = 0;
         int PaperAmount = 0;
-        private void CoinCount(string data) //0x22收幣狀態
+        DateTime? CoinOutTimer;
+        private void CoinCount(string data)     //0xC0出幣狀態
         {
-            CoinAmount = ((Convert.ToInt32(data.Substring(20, 2), 16)) + (Convert.ToInt32(data.Substring(22, 2), 16) * 256) + (Convert.ToInt32(data.Substring(24, 2), 16) * 256 * 256) + (Convert.ToInt32(data.Substring(26, 2), 16) * 256 * 256 * 256)) / 100;
-            int Amount = ((Convert.ToInt32(data.Substring(12, 2), 16)) + (Convert.ToInt32(data.Substring(14, 2), 16) * 256) + (Convert.ToInt32(data.Substring(16, 2), 16) * 256 * 256)) / 100;
-            TotalAmount = PaperAmount + CoinAmount;            
-            _logger.LogInformation($"PS100 出幣:[Coin]     {Amount}元一枚  目前累計找錢金額:{TotalAmount}元" + "\r\n");
-            //驗證是否已完成找零 -- 若 找零狀態 == 找零金額 就傳送 "結帳完成"
-            if (TotalAmount == PayoutValue)
+            if (CoinAmount == 0)
             {
-                OnCheckoutCompleted(this, "結帳完成");
+                var timeElapsed = DateTime.Now - CoinOutTimer.Value;
+                _logger.LogInformation($"[0xC0] 回應時間花費: {timeElapsed.TotalMilliseconds}毫秒]");
+            }
+            if ( data.Length != 34) //2023/11/23 錯誤狀況判斷
+            {
+
+                _logger.LogInformation($"{data}");
+                _logger.LogError($"錯誤代碼[P10001]:出幣回應格式有誤");
+
+            }
+            else
+            {
+
+                CoinAmount = ((Convert.ToInt32(data.Substring(20, 2), 16)) + (Convert.ToInt32(data.Substring(22, 2), 16) * 256) + (Convert.ToInt32(data.Substring(24, 2), 16) * 256 * 256) + (Convert.ToInt32(data.Substring(26, 2), 16) * 256 * 256 * 256)) / 100;
+                int Amount = ((Convert.ToInt32(data.Substring(12, 2), 16)) + (Convert.ToInt32(data.Substring(14, 2), 16) * 256) + (Convert.ToInt32(data.Substring(16, 2), 16) * 256 * 256)) / 100;
+
+                TotalAmount = PaperAmount + CoinAmount;
+                _logger.LogInformation($"PS100 出幣:[0xC0]     {Amount}元一枚  目前累計找錢金額:{TotalAmount}元" );
+                OnCashedOut(this, Amount);
+                //驗證是否已完成找零 -- 若 找零狀態 == 找零金額 就傳送 "結帳完成"
+                if (TotalAmount == PayoutValue)
+                {
+                    OnCheckoutCompleted(this, "結帳完成");
+                }
             }
         }
-        private void PaperCount(string data)
+
+        private void PaperCount(string data)    //0xC1出鈔狀態    
         {
-            PaperAmount = ((Convert.ToInt32(data.Substring(20, 2), 16)) + (Convert.ToInt32(data.Substring(22, 2), 16) * 256) + (Convert.ToInt32(data.Substring(24, 2), 16) * 256 * 256) + (Convert.ToInt32(data.Substring(26, 2), 16) *256 * 256 * 256)) / 100;
-            int Amount =((Convert.ToInt32(data.Substring(12, 2), 16)) + (Convert.ToInt32(data.Substring(14, 2), 16)*256) + (Convert.ToInt32(data.Substring(16, 2), 16) *256 * 256)) / 100;
-            TotalAmount = PaperAmount + CoinAmount;
-            _logger.LogInformation($"PS100 出鈔:[Paper]    {Amount}元一張  目前累計找錢金額:{TotalAmount}元" + "\r\n");
-            //驗證是否已完成找零 -- 若 找零狀態 == 找零金額 就傳送 "結帳完成"
-            if (TotalAmount == PayoutValue)
+            if (data.Length != 34)
             {
-                OnCheckoutCompleted(this, "結帳完成");
+                _logger.LogInformation($"{data}");
+                _logger.LogError($"錯誤代碼[P10002]:出鈔回應格式有誤");
             }
+            else
+            {
+                PaperAmount = ((Convert.ToInt32(data.Substring(20, 2), 16)) + (Convert.ToInt32(data.Substring(22, 2), 16) * 256) + (Convert.ToInt32(data.Substring(24, 2), 16) * 256 * 256) + (Convert.ToInt32(data.Substring(26, 2), 16) * 256 * 256 * 256)) / 100;
+                int Amount = ((Convert.ToInt32(data.Substring(12, 2), 16)) + (Convert.ToInt32(data.Substring(14, 2), 16) * 256) + (Convert.ToInt32(data.Substring(16, 2), 16) * 256 * 256)) / 100;
+                TotalAmount = PaperAmount + CoinAmount;
+                _logger.LogInformation($"PS100 出鈔:[0xC1]    {Amount}元一張  目前累計找錢金額:{TotalAmount}元" + "\r\n");
+                OnCashedOut(this, Amount);
+                //驗證是否已完成找零 -- 若 找零狀態 == 找零金額 就傳送 "結帳完成"
+                if (TotalAmount == PayoutValue)
+                {
+                    OnCheckoutCompleted(this, "結帳完成");
+                }
+            }
+                
         }
-        
+
         private void LoadCommandsFromJson(string filePath)
         {
             try
@@ -1103,6 +1070,7 @@ namespace Checkout.Services
 
                         // 將硬體規格名稱及對應的指令映射加入到 fullCommandsMap 字典中
                         fullCommandsMap.Add(hardwareName, hardware);
+
                     }
                 }
                 else
@@ -1117,8 +1085,10 @@ namespace Checkout.Services
                 _logger.LogInformation($"讀取指令集失敗：{ex}");
             }
         }
+
         public string GenerateFullCommand(string shortCommand, int value, int amount)
         {
+
             string commandOnly = shortCommand;
             // 檢查是否符合例外轉換規則
 
@@ -1150,6 +1120,7 @@ namespace Checkout.Services
                 else if (commandOnly == "11")
                 {
                     instructionCode = 0x11;
+                    CoinOutTimer = DateTime.Now;
                 }
                 // 資料長度碼為 0x06
                 byte dataLengthCode = 0x06;
@@ -1192,6 +1163,7 @@ namespace Checkout.Services
                 // fullCommandBuilder.Append(sumHex);
                 string fullCommand = fullCommandBuilder.ToString();
                 return fullCommand;
+
             }
             else if (commandOnly == "07" || commandOnly == "08")
             {
@@ -1218,7 +1190,6 @@ namespace Checkout.Services
                                        .Reverse();
                 // 將 chunks 合併成最終的字串
                 result2 = string.Join(" ", chunk2);
-
                 //int totalValue1 = int.Parse(textbox1.Text) * 100;
                 int totalValue1 = value * 100;
                 // 將 totalValue 轉換成十六進位字串
@@ -1246,6 +1217,7 @@ namespace Checkout.Services
                 byte[] parameterBytes2 = Enumerable.Range(0, parameterHex2.Length / 2)
                                                   .Select(i => Convert.ToByte(parameterHex2.Substring(i * 2, 2), 16))
                                                   .ToArray();
+
                 // 計算 sum
                 int sum = instructionCode + dataLengthCode;
                 foreach (byte b in parameterBytes2)
@@ -1268,6 +1240,7 @@ namespace Checkout.Services
                 byte[] parameterBytes1 = Enumerable.Range(0, parameterHex1.Length / 2)
                                                   .Select(i => Convert.ToByte(parameterHex1.Substring(i * 2, 2), 16))
                                                   .ToArray();
+
                 // 計算 sum
                 foreach (byte b in parameterBytes1)
                 {
@@ -1292,7 +1265,6 @@ namespace Checkout.Services
                 fullCommandBuilder.Append(crcHex);
                 fullCommandBuilder.Append(" 7F 7E");
                 // fullCommandBuilder.Append(sumHex);
-
                 string fullCommand = fullCommandBuilder.ToString();
                 return fullCommand;
             }
@@ -1308,20 +1280,16 @@ namespace Checkout.Services
                 string fullCommand = string.Format("40 02 00 00 {0:X2} {1:X2} 7F 7E", hexValue, crc);
                 return fullCommand;
             }
+
         }
+
         public void BinaryOut(params object[] p_varData)
         {
             List<byte> s_bufESCCommand = new List<byte>();
-
             Int32 s_intTemp;
             String s_strTemp;
             Byte[] s_bufTemp;
-
             String s_strTypeOf;
-
-
-
-
 
             foreach (object s_objTemp in p_varData)
             {
@@ -1365,12 +1333,120 @@ namespace Checkout.Services
                         break;
                 }
             }
-
             WP_K837_serialPort.Write(s_bufESCCommand.ToArray(), 0, s_bufESCCommand.Count);
-
-            
         }
+        public void testrecipt()
+        {
+            _logger.LogInformation("testrecipt start");
+            DateTime dateTime = DateTime.Now;
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            EscPOS POSCmd = new EscPOS();
+            BinaryOut(POSCmd.StatusRealTime());
+            BinaryOut(POSCmd.Initialize());
+            BinaryOut(POSCmd.PageMode(true));
+            BinaryOut(POSCmd.Align(1));
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.LineSpacing(7 * 8));
+            BinaryOut(POSCmd.LineSpacing(75));
+
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"訂單號碼:000000000000"), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.LineSpacing(0));
+
+            BinaryOut(POSCmd.FontSize(0, 0), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔"), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.LineSpacing(7 * 8));
+
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"訂單編號:0000"), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"包廂:測試"), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"購買時數:0"), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"交易時間:{dateTime.Hour}時{dateTime.Minute}分 "), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"結束時間: 時 分 "), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            //BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(true), Encoding.GetEncoding("Big5").GetBytes($"購買時數{Hours}"), POSCmd.CrLf());
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"總計:0元"), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.Align(0), POSCmd.LineSpacing(0));
+            //BinaryOut(POSCmd.FontSize(0, 0), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"訂單編號：:{OrderId}     總計 {Amount}"), POSCmd.CrLf());
+            //BinaryOut(POSCmd.FontSize(0, 0), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes("賣方12345678     買方87654321"), POSCmd.CrLf());
+            BinaryOut(POSCmd.Align(1));
+            BinaryOut(0x1d, 0x57, 0x87, 0x01);
+            BinaryOut(POSCmd.Align(0));
+            BinaryOut(POSCmd.FeedDot(120));
+            BinaryOut(POSCmd.CutPartial());
+
+        }
+
+        public void recipt(Int64 OrderId, string TableName, int TableId,Decimal Hours,int Amount,DateTime dateTime,int HourRate)
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            EscPOS POSCmd = new EscPOS();
+            DateTime EndTime;
+            try
+            {
+                 EndTime = _tablecontroller.Endtime(TableId);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError($"嘗試獲得桌號結束時間時錯誤 Ex:{ex}");
+                 EndTime = DateTime.Now;
+            }
+
+
+
+            BinaryOut(POSCmd.StatusRealTime());
+            BinaryOut(POSCmd.Initialize());
+            BinaryOut(POSCmd.PageMode(true));
+            BinaryOut(POSCmd.Align(1));
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.LineSpacing(7 * 8));
+            BinaryOut(POSCmd.LineSpacing(75));
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"訂單號碼:{OrderId.ToString().Substring(8,4)}"), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.LineSpacing(0));
+
+            BinaryOut(POSCmd.FontSize(0, 0), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔"), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.LineSpacing(7 * 8));
+
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"訂單編號:{OrderId}"), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"日期:{dateTime.Month}月{dateTime.Day}日"), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"費率:{HourRate}元/時"), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"包廂:{TableName}"), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"購買時數:{Hours}"), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"交易時間:{dateTime.Hour}時{dateTime.Minute}分 "), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"結束時間:{EndTime.Hour}時{EndTime.Minute}分 "), POSCmd.CrLf());
+            _logger.LogInformation($"結束時間:{EndTime.Hour}時{EndTime.Minute}分 ");
+            _logger.LogInformation($"包廂:{TableName}");
+            _logger.LogInformation($"桌號:{TableId}");
+            BinaryOut(POSCmd.PrintNV(1));
+            //BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(true), Encoding.GetEncoding("Big5").GetBytes($"購買時數{Hours}"), POSCmd.CrLf());
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"總計:{Amount}元"), POSCmd.CrLf());
+            BinaryOut(POSCmd.PrintNV(1));
+            BinaryOut(POSCmd.Align(0), POSCmd.LineSpacing(0));
+            //BinaryOut(POSCmd.FontSize(0, 0), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"訂單編號：:{OrderId}     總計 {Amount}"), POSCmd.CrLf());
+            //BinaryOut(POSCmd.FontSize(0, 0), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes("賣方12345678     買方87654321"), POSCmd.CrLf());
+            BinaryOut(POSCmd.Align(1));
+            BinaryOut(0x1d, 0x57, 0x87, 0x01);
+            BinaryOut(POSCmd.Align(0));
+            BinaryOut(POSCmd.FeedDot(120));
+            BinaryOut(POSCmd.CutPartial());
+
+        }
+
     }
+
     class EscPOS
     {
         public EscPOS() { }
@@ -1434,7 +1510,7 @@ namespace Checkout.Services
             s_bufFooter.CopyTo(s_bufReturn, s_bufHeader.Length + p_bufData.Length);
             return s_bufReturn;
         }
-        
+
     }
 
 
