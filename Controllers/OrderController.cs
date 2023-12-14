@@ -22,10 +22,10 @@ namespace MahJongBPS.Controllers
         }
 
         [HttpPost("Checkout")]
-        public IActionResult Checkout([FromQuery] int tableNumber,[FromQuery]string tableName, [FromQuery] int hours, [FromQuery] int hourlyRate, [FromQuery] int totalAmount)
+        public IActionResult Checkout([FromQuery] int tableNumber,[FromQuery]string tableName, [FromQuery] Decimal minutes, [FromQuery] int totalAmount)
         {
 
-            _logger.LogInformation($"寫入資料庫==>桌號:{tableNumber},購買時數:{hours},結帳金額:{totalAmount},小時費率:{hourlyRate}"); // 輸出金額到控制台
+            _logger.LogInformation($"寫入資料庫==>桌號:{tableNumber},購買分鐘數:{minutes},結帳金額:{totalAmount}"); // 輸出金額到控制台
                                                                                                                    // 获取当前日期
             DateTime currentDate = DateTime.UtcNow.Date;
 
@@ -36,12 +36,13 @@ namespace MahJongBPS.Controllers
 
             // 生成流水号
             Int64 orderNumber = Int64.Parse($"{currentDate:yyyyMMdd}{todayOrderCount + 1:D4}");
-            _logger.LogInformation(orderNumber.ToString());
+            _logger.LogInformation($"[訂單編號]{orderNumber}");
+            _logger.LogInformation($"[訂單號碼]{orderNumber.ToString().Substring(8,4)}");
             var newOrder = new Order
             {
                 OrderId = orderNumber,
                 TableId = tableNumber,
-                TotalHour = hours,
+                TotalMinutes = minutes,
                 TotalAmount = totalAmount,
                 OrderDate = DateTime.UtcNow // 设置订单日期为当前的 Utc 时间
             };
@@ -50,7 +51,17 @@ namespace MahJongBPS.Controllers
             {
                 _context.SaveChanges();
                 _logger.LogInformation("成功對資料庫新增訂單紀錄");
-                _serialPortService.recipt(orderNumber, tableName, tableNumber, hours, totalAmount, DateTime.Now);
+                try
+                {
+                    
+                    _serialPortService.recipt(orderNumber, tableName, tableNumber, minutes, totalAmount, DateTime.Now);
+
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogInformation($"印單失敗:{ex}");
+                    return Content($"印單失敗:{ex}");
+                }
                 return Ok(new { message = "成功對資料庫新增訂單紀錄" });
             }
             catch (Exception ex)
@@ -73,8 +84,10 @@ namespace MahJongBPS.Controllers
         [HttpGet("DailyRevenue")]
         public IActionResult GetDailyRevenue(DateTime date)
         {
+            Console.WriteLine($"{date}");
             try
             {
+                
                 // 查询指定日期的所有订单
                 var orders = _context.Orders
                     .Where(o => o.OrderDate.Date == date.Date)

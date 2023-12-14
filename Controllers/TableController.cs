@@ -49,7 +49,7 @@ namespace MahJongBPS.Controllers
                 InitializeTableTimers();
                 isInitialized = true;
             }
-
+            
         }
         private void InitializeTableTimers()
         {
@@ -64,7 +64,6 @@ namespace MahJongBPS.Controllers
 
                         int tableNumber = kvp.Key;
                         int remainingTime = kvp.Value;
-
                         Timer newTimer = new Timer();
                         newTimer.Interval = remainingTime * 1000;
                         newTimer.AutoReset = false; 
@@ -72,50 +71,40 @@ namespace MahJongBPS.Controllers
                         newTimer.Enabled = true;
                         tableTimers[tableNumber] = new TimerData(newTimer, DateTime.Now);
                         //_logger.LogInformation($"復原 [{remainingTime}秒] 至 [{tableNumber}號桌] ");
-
                 }
-
-
             }
             catch (Exception ex)
             {
                 _logger.LogInformation($"{isInitialized}載入桌號剩餘時間失敗 erro:{ex}");
-
             }
-
-
-
         }
+        
         // 数据结构用于跟踪桌号的计时器
         [HttpPost("CheckOutTable")]
-        public IActionResult CheckOutTable([FromQuery] int tableNumber, [FromQuery] int hours)
+        public IActionResult CheckOutTable([FromQuery] int tableNumber, [FromQuery] int seconds)
         {
-            _logger.LogInformation($"CheckOutTable called with tableNumber: {tableNumber}, hours: {hours}");
-
+            _logger.LogInformation($"CheckOutTable called with tableNumber: {tableNumber}, hours: {seconds}");
             if (tableTimers.TryGetValue(tableNumber, out TimerData timerData))
             {
                 // 获取原计时器的剩余时间
                 double remainingMilliseconds = timerData.Timer.Interval - (DateTime.Now - timerData.StartTime).TotalMilliseconds;
-
                 // 取消旧计时器
                 timerData.Timer.Stop();
                 timerData.Timer.Close();
-
                 // 计算新的总时间（包括原剩余时间和加购时间）
-                double newMilliseconds = remainingMilliseconds + (hours * 60 * 60 * 1000); // 将小时转换为毫秒
+                double newMilliseconds = remainingMilliseconds + (seconds  * 1000); // 将小时转换为毫秒
                 Timer newTimer = new Timer();
                 newTimer.Interval = newMilliseconds;
                 newTimer.AutoReset = false; // 设置为 false，以便计时器在触发后不再重复触发
                 newTimer.Elapsed += (sender, e) => OnTimerElapsed(sender, e, tableNumber); // 设置触发事件
                 newTimer.Enabled = true; // Start the timer
                 tableTimers[tableNumber] = new TimerData(newTimer, DateTime.Now);
-
-                _logger.LogInformation($"加購 [{hours}小時] 至 [{tableNumber}號桌]");
+                _logger.LogInformation($"加購 [{seconds/60}分鐘] 至 [{tableNumber}號桌]");
             }
             else
             {
                 // 创建新计时器并添加到字典
-                double millisecondsToClose = hours * 60 * 60 * 1000; // 将小时转换为毫秒
+                double millisecondsToClose = seconds * 1000; // 将小时转换为毫秒
                 Timer timer = new Timer();
                 timer.Interval= millisecondsToClose;
                 timer.AutoReset = false; // 设置为 false，以便计时器在触发后不再重复触发
@@ -131,7 +120,7 @@ namespace MahJongBPS.Controllers
                     _logger.LogInformation($"發送開啟[{tableNumber}號桌]");
                 });
 
-                _logger.LogInformation($"開啟 [{hours}小時] 至 [{tableNumber}號桌]");
+                _logger.LogInformation($"開啟 [{seconds / 60}分鐘] 至 [{tableNumber}號桌]");
             }
 
             //_logger.LogInformation($"Final tableTimers.Count: {tableTimers.Count}");
@@ -173,7 +162,7 @@ namespace MahJongBPS.Controllers
         {
             tableTimers.TryGetValue(tableNumber, out TimerData timerData);
             double remainingTime = timerData.Timer.Interval - (DateTime.Now - timerData.StartTime).TotalMilliseconds;
-            Console.WriteLine(DateTime.Now.AddMilliseconds(remainingTime));
+            //Console.WriteLine(DateTime.Now.AddMilliseconds(remainingTime));
             return DateTime.Now.AddMilliseconds(remainingTime);
         }
 
@@ -184,18 +173,28 @@ namespace MahJongBPS.Controllers
             try
             {
                 tableTimers.TryGetValue(tableNumber, out TimerData timerData);
-                
-                    // 获取原计时器的剩余时间
-                    double remainingTime = timerData.Timer.Interval - (DateTime.Now - timerData.StartTime).TotalMilliseconds;
-                    
-                
-
-                _logger.LogInformation($"查詢桌號:{tableNumber} 剩餘時間:{remainingTime}秒");
+                 // 获取原计时器的剩余时间
+                 double remainingTime = timerData.Timer.Interval - (DateTime.Now - timerData.StartTime).TotalMilliseconds;
+                string remainString= "";
+                int hours = (int)(remainingTime   / 1000 / 3600);
+                if (hours > 0) {
+                    remainString += $"{hours}時";
+                }
+                int minutes = (int)(remainingTime / 1000  % 3600 /60 );
+                if (minutes > 0)
+                {
+                    remainString += $"{minutes}分";
+                }
+                int seconds = (int)(remainingTime / 1000 % 60 );
+                if (seconds > 0)
+                {
+                    remainString += $"{seconds}秒";
+                }
+                _logger.LogInformation($"查詢桌號:{tableNumber} 剩餘時間: {remainString}");
                 return Json(new { tableNumber, remainingTime });
             }
             catch
             {
-                
                 return Json(new { tableNumber, remainingTime = TimeSpan.Zero });
             }
         }
@@ -265,6 +264,7 @@ namespace MahJongBPS.Controllers
 
            
         }
+
         private void PerformOpenAction(int tableNumber)
         {
             byte[] closeCommandBytes = ConvertTableToOpenCommand(tableNumber);
@@ -289,25 +289,33 @@ namespace MahJongBPS.Controllers
         private void PerformSerialPortAction(Action<SerialPort> action)
         {
             string ModBusPort = _appSettings.ModBusPort;
-
-            using (var serialPort = new SerialPort(ModBusPort, 9600))
+            if ( ModBusPort == "COM")
             {
-                if (serialPort.IsOpen==false)
+                _logger.LogInformation($"尚未設定 電控箱COM PORT");
+            }
+            else
+            {
+                using (var serialPort = new SerialPort(ModBusPort, 9600))
                 {
-                    serialPort.Open();
-                }
+                    if (serialPort.IsOpen == false)
+                    {
+                        serialPort.Open();
+                    }
                     try
-                {
-                    
-                    action(serialPort); // 执行操作
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogInformation($"串口連接失敗：{ex.Message}");
-                    // 处理连接失败情况
+                    {
+
+                        action(serialPort); // 执行操作
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogInformation($"串口連接失敗：{ex.Message}");
+                        // 处理连接失败情况
+                    }
                 }
             }
+            
         }
+
         private byte[] ConvertTableToOpenCommand(int tableNumber)
         {
             
@@ -320,6 +328,7 @@ namespace MahJongBPS.Controllers
             //_logger.LogInformation("API function ConvertTableToCloseCommand deviceAddress{" + deviceAddress + "} tableNumber{" + tableNumber + "}");
             return GenerateRelayCommand(tableNumber, isTurnOn: false);
         }
+
         private byte[] GenerateRelayCommand(int deviceAddress, bool isTurnOn)
         {
             int deviceType = 1; //1:8port mod bus 2:4port mod bus
@@ -345,15 +354,15 @@ namespace MahJongBPS.Controllers
 
                 fullCommand[data.Length] = (byte)(crc & 0xFF);
                 fullCommand[data.Length + 1] = (byte)(crc >> 8);
-                //_logger.LogInformation("API function GenrateRelayCommand addressByte{" + addressByte + "} controlCommand{" + controlCommand + "} Data[" + BitConverter.ToString(data).Replace("-", " ") + "] fullcommand: " + BitConverter.ToString(fullCommand).Replace("-", " "));
+                _logger.LogInformation("API function GenrateRelayCommand addressByte{" + addressByte + "} controlCommand{" + isTurnOn + "} Data[" + BitConverter.ToString(data).Replace("-", " ") + "] fullcommand: " + BitConverter.ToString(fullCommand).Replace("-", " "));
                 return fullCommand;
             }
             else 
             {
                 deviceAddress -= 1;
                 //轉換規則:桌號即端口(8port)    
-                byte addressByte = Convert.ToByte(1);      //電路板地址
-                byte portByte = Convert.ToByte(deviceAddress);  //串口地址     
+                byte addressByte = Convert.ToByte(deviceAddress / 8 + 1);      //電路板地址
+                byte portByte = Convert.ToByte(deviceAddress % 8);  //串口地址     
                                                                     //byte addressByte = 01;          //電路板地址
                                                                     //byte portByte = deviceAddress ;  //串口地址          
                 byte controlByte = isTurnOn ? (byte)0xFF : (byte)0x00; //開關
@@ -370,10 +379,9 @@ namespace MahJongBPS.Controllers
 
                 fullCommand[data.Length] = (byte)(crc & 0xFF);
                 fullCommand[data.Length + 1] = (byte)(crc >> 8);
-                //_logger.LogInformation("API function GenrateRelayCommand addressByte{" + addressByte + "} controlCommand{" + controlCommand + "} Data[" + BitConverter.ToString(data).Replace("-", " ") + "] fullcommand: " + BitConverter.ToString(fullCommand).Replace("-", " "));
+                _logger.LogInformation("API function GenrateRelayCommand addressByte{" + addressByte + "} controlCommand{" + isTurnOn + "} Data[" + BitConverter.ToString(data).Replace("-", " ") + "] fullcommand: " + BitConverter.ToString(fullCommand).Replace("-", " "));
                 return fullCommand;
             }
-
         }
 
 
@@ -442,7 +450,6 @@ namespace MahJongBPS.Controllers
 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41,
 0x00, 0xC1, 0x81,
 0x40
-
     };
 
         private static readonly byte[] auchCRCLo = {
