@@ -34,7 +34,7 @@ namespace MahJongBPS.Services
         void XC100StockUpdate(int amount, int method);
         int XC100StockScan();
         Task MHdispense(int data);
-        void recipt(Int64 OrderId,string TableName, int TableId, Decimal Hours, int Amount, DateTime dateTime, int H);
+        void recipt(Int64 OrderId,string TableName, int TableId, Decimal Hours, int Amount, DateTime dateTime);
         void MHstockUpdate(int amount, int method);
         void testrecipt();
     }
@@ -1382,7 +1382,7 @@ namespace MahJongBPS.Services
 
         }
 
-        public void recipt(Int64 OrderId, string TableName, int TableId,Decimal Hours,int Amount,DateTime dateTime,int HourRate)
+        public void recipt(Int64 OrderId, string TableName, int TableId,Decimal Minutes,int Amount,DateTime dateTime)
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             EscPOS POSCmd = new EscPOS();
@@ -1418,11 +1418,11 @@ namespace MahJongBPS.Services
             BinaryOut(POSCmd.PrintNV(1));
             BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"日期:{dateTime.Month}月{dateTime.Day}日"), POSCmd.CrLf());
             BinaryOut(POSCmd.PrintNV(1));
-            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"費率:{HourRate}元/時"), POSCmd.CrLf());
+            //BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"費率:{HourRate}元/時"), POSCmd.CrLf());
             BinaryOut(POSCmd.PrintNV(1));
             BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"包廂:{TableName}"), POSCmd.CrLf());
             BinaryOut(POSCmd.PrintNV(1));
-            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"購買時數:{Hours}"), POSCmd.CrLf());
+            BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"購買分鐘數:{Minutes}分鐘"), POSCmd.CrLf());
             BinaryOut(POSCmd.PrintNV(1));
             BinaryOut(POSCmd.FontSize(1, 1), POSCmd.EmphasizedMode(false), Encoding.GetEncoding("Big5").GetBytes($"交易時間:{dateTime.Hour}時{dateTime.Minute}分 "), POSCmd.CrLf());
             BinaryOut(POSCmd.PrintNV(1));
