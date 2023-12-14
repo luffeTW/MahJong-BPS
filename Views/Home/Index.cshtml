@@ -48,9 +48,14 @@
 
         .control {
             display: flex;
-            flex-wrap: wrap;
             flex-direction: column;
+            flex-wrap: wrap;
             margin-left: 35px;
+        }
+        .div-radio{
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
         }
         .label-radio{
             display: flex;
@@ -69,6 +74,8 @@
             }
         /* 調整單選按鈕間距 */
         .opitionString {
+            display: flex;
+            flex-wrap: wrap;
             margin-left: 10px;
         }
 
@@ -232,8 +239,8 @@
                     <p class="subtitle is-1">{{tableNumber}}</p>
                 </header>
                 <section class="modal-card-body">
-                    <div class="control">
-                        <label class="label-radio">
+                    <div class="control" id="control">
+                       @*  <label class="label-radio">
                             <input type="radio" class="form-check-input" name="purchaseHours" value="1" >
                             <span class="opitionString is-size-2" hourValue="1"></span>
                         </label>
@@ -252,7 +259,7 @@
                         <label class="label-radio">
                             <input type="radio" class="form-check-input" name="purchaseHours" value="5">
                             <span class="opitionString is-size-2" hourValue="5"></span>
-                        </label>
+                        </label> *@
                     </div>
                 </section>
                 <footer class="modal-card-foot">
@@ -341,6 +348,11 @@
         // 添加其他分类和价格
     };
 
+    const roomCategory = {
+        '一般桌': 1,
+        '包廂': 2,
+    }
+
 
 
     // 生成按钮的函数
@@ -358,10 +370,15 @@
         p.textContent = tableNumber;
         button.appendChild(p);
         // 设置按钮价格
-        const hourlyRate = categoryPrices[category] || 400; // 默认价格为400
-        if (hourlyRate !== 400) {
-            button.setAttribute('table-hour-rate', hourlyRate);
-        }
+        // const hourlyRate = categoryPrices[category] || 400; // 默认价格为400
+        // if (hourlyRate !== 400) {
+        //     button.setAttribute('table-hour-rate', hourlyRate);
+        // }
+
+        //設置包廂類型
+        const categoryId = roomCategory[category]
+        button.setAttribute('room-category', categoryId);
+
         // 将按钮添加到容器中
         container.appendChild(button);
     }
@@ -376,6 +393,7 @@
     createTableButton('6', '碰碰胡(一)', '一般桌');
     createTableButton('7', '一摸三(一)', '一般桌');
     createTableButton('8', '槓開花(一)', '一般桌');
+
     createTableButton('9', '大三元(二)', '包廂');
     createTableButton('10', '大四喜(二)', '包廂');
     createTableButton('11', '清一色(二)', '包廂');
@@ -384,8 +402,50 @@
     createTableButton('14', '碰碰胡(二)', '包廂');
     createTableButton('15', '一摸三(二)', '包廂');
     createTableButton('16', '槓開花(二)', '包廂');
+    async function GetRoom(RoomCategory) {
+        fetch(`api/Room/GetRoom?CategoryId=${RoomCategory}`)
+            .then(response => response.json())
+            .then(data => {
+
+                console.log(data);
+
+                //data.forEach((room, index) => {
+                const container = document.getElementById('tableButtons');
+
+                // 创建按钮元素
+                const button = document.createElement('button');
+                button.classList.add('button', 'btn-table');
+                button.setAttribute('id', '9');
+                button.setAttribute('data-table-number', '大三元(二)');
+                button.setAttribute('table-number', '9');
+                // 设置按钮内部内容
+                const p = document.createElement('p');
+                p.classList.add('timer', 'title');
+                p.textContent = '大三元(二)';
+                button.appendChild(p);
+                // 设置按钮价格
+                // const hourlyRate = categoryPrices[category] || 400; // 默认价格为400
+                // if (hourlyRate !== 400) {
+                //     button.setAttribute('table-hour-rate', hourlyRate);
+                // }
+
+                //設置包廂類型
+                //const categoryId = roomCategory[category]
+                button.setAttribute('room-category', 2);
+
+                // 将按钮添加到容器中
+                container.appendChild(button);
+                //});
+
+            })
+            .catch(error => console.error('Error:', error));
+    }
+    //GetRoom(1);
+    //GetRoom(2);
+    updateAllRemainingTimesOnLoad();
 
     document.addEventListener('DOMContentLoaded', function () {
+
         const modalWrapper = document.getElementById('modalWrapper');
         const buttons = document.querySelectorAll('.button[data-table-number]');
 
@@ -425,12 +485,13 @@
 
         buttons.forEach(function (button) {
             button.addEventListener('click', function () {
-                
                 waitForCheckoutCompletion = false;
                 tableNumber = button.getAttribute('table-number');
                 tableName = button.getAttribute('data-table-number');
                 hourlyRate = button.getAttribute('table-hour-rate');
-                
+                const roomCategory = button.getAttribute('room-category');
+                GetOption(roomCategory);
+
                 //預設費率為400元每小時
                 if (hourlyRate == null) {
                     hourlyRate = 400;
@@ -441,15 +502,15 @@
                 
                 modalWrapper.innerHTML = modalContent;
                 modalWrapper.classList.add('is-active');
-                const labels = document.querySelectorAll('.opitionString[hourValue]');
-                labels.forEach((label) => {
-                    console.log('trying to get label');
-                    const labelNumber = label.getAttribute('hourValue');
-                    const opitionString = ` ${labelNumber}小時/${hourlyRate * labelNumber}元`;
-                    label.innerHTML.replace('{{opitionString}}', opitionString);
-                    label.innerText = opitionString;
+                // const labels = document.querySelectorAll('.opitionString[hourValue]');
+                // labels.forEach((label) => {
+                //     console.log('trying to get label');
+                //     const labelNumber = label.getAttribute('hourValue');
+                //     const opitionString = ` ${labelNumber}小時/${hourlyRate * labelNumber}元`;
+                //     label.innerHTML.replace('{{opitionString}}', opitionString);
+                //     label.innerText = opitionString;
 
-                });
+                // });
                 console.log(tableNumber);
             });
         });
@@ -484,16 +545,22 @@
             //console.log(tableNumber + " " + selectedHourValue);
             if (event.target.classList.contains('is-C1')) {
                 console.log("c1 on clicked");
-                const selectedHourInput = document.querySelector('input[name="purchaseHours"]:checked');
-                if (selectedHourInput) {
-                    
-                    const selectedHourValue = parseFloat(selectedHourInput.value);
-                    
-                    
 
-                    totalAmount = selectedHourValue * hourlyRate;
+                //const selectedHourInput = document.querySelector('input[name="purchaseHours"]:checked');
+                const selectedMinuteInput = document.querySelector('input[name="options"]:checked');
+
+                //if (selectedHourInput) {
+                if (selectedMinuteInput) { 
+
+                    //const selectedHourValue = parseFloat(selectedHourInput.value);
+                    const selectedMinuteValue = parseFloat(selectedMinuteInput.getAttribute('minutes'));
+
+                    //totalAmount = selectedHourValue * hourlyRate;
+                    totalAmount = selectedMinuteInput.getAttribute('price')
                    
-                    console.log("選擇桌號:" + tableNumber + ",選擇時數" + selectedHourValue + ",費率:" + hourlyRate +",費用:"+totalAmount);
+                    //console.log("選擇桌號:" + tableNumber + ",選擇時數" + selectedHourValue + ",費率:" + hourlyRate +",費用:"+totalAmount);
+                    console.log("選擇桌號:" + tableNumber + ",選擇分鐘數" + selectedMinuteValue + ",費用:" + totalAmount);
+
                     Checkout_1();   //開啟投幣&收鈔
                     waitForCheckoutCompletion = false;
                     console.log("C1");
@@ -510,9 +577,11 @@
                        
                     }else{
                         //在接收到"結帳完成"通知后再开启继电器
-                        StartTable(tableNumber, selectedHourValue);
+                        //StartTable(tableNumber, selectedHourValue);
+                        StartTable(tableNumber, selectedMinuteValue);
+
                         //傳送訂單訊息至資料庫 以及列印收據
-                        CompleteOrder(tableNumber,tableName, selectedHourValue, hourlyRate, totalAmount);
+                        CompleteOrder(tableNumber, tableName, selectedMinuteValue, totalAmount);
                     }
 
                 } else {
@@ -780,7 +849,6 @@
     
 
     // 在首页加载时，更新所有桌号的剩余时间
-    updateAllRemainingTimesOnLoad();
 
     
 
@@ -799,9 +867,9 @@
 
     
 
-    async function CompleteOrder(tableNumber,tableName, selectedHourValue, hourlyRate, totalAmount) {
+    async function CompleteOrder(tableNumber,tableName, selectedMinuteValue, totalAmount) {
         try {
-            const response = await fetch(`/api/Order/Checkout?tableNumber=${tableNumber}&tableName=${tableName}&hours=${selectedHourValue}&hourlyRate=${hourlyRate}&totalAmount=${totalAmount}`, {
+            const response = await fetch(`/api/Order/Checkout?tableNumber=${tableNumber}&tableName=${tableName}&minutes=${selectedMinuteValue}&totalAmount=${totalAmount}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -826,10 +894,13 @@
             console.error("呼叫API時發生錯誤：" + error);
         }
     }
-    async function StartTable(tableNumber, selectedHourValue) {
-        console.log(tableNumber + "" + selectedHourValue);
+    async function StartTable(tableNumber, selectedMinuteValue) {
+    //async function StartTable(tableNumber, selectedHourValue) {
+        console.log(tableNumber + "" + selectedMinuteValue);
+        //console.log(tableNumber + "" + selectedHourValue);
+        var selectedSecondsValue = selectedMinuteValue * 60;
         try {
-            const url = `/api/Table/CheckOutTable?tableNumber=${tableNumber}&hours=${selectedHourValue}`;
+            const url = `/api/Table/CheckOutTable?tableNumber=${tableNumber}&seconds=${selectedSecondsValue}`;
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -884,6 +955,50 @@
         console.error("SignalR連接錯誤: " + error);
     });
 
+    
+
+    async function GetOption(RoomCategory) {
+        console.log("Geting Option");
+        fetch(`api/Option/GetOption?TableCategory=${RoomCategory}`)
+            .then(response => response.json())
+            .then(data => {
+
+                console.log(data);
+                // 獲取包含 radio button 的容器元素
+                const container = document.getElementById('control');
+
+                // 迭代資料並生成 radio button
+                // 迭代資料並生成 radio button
+                data.forEach((option, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'div-radio';
+                    // 創建 radio button 元素
+                    const radioButton = document.createElement('input');
+                    radioButton.type = 'radio';
+                    radioButton.className = 'form-check-input';
+                    radioButton.name = 'options'; // 這裡使用相同的名稱以便形成單選群組
+                    radioButton.setAttribute('minutes', option.minutes);
+                    radioButton.setAttribute('price', option.price);
+
+                    // 創建標籤元素顯示資訊（price 和 minutes）
+                    const span = document.createElement('span');
+                    span.textContent = option.name;
+                    // 使用 classList.add 方法添加 class
+                    span.classList.add('opitionString');
+                    span.classList.add('is-size-2');
+                    span.style.whiteSpace = 'pre-wrap';
+                    // 將 radio button 和標籤添加到 div 中
+                    div.appendChild(radioButton);
+                    div.appendChild(span);
+
+                    // 將 div 添加到容器
+                    container.appendChild(div);
+                    // 添加換行符號（可選）
+                    //container.appendChild(document.createElement('br'));
+                });
+            })
+            .catch(error => console.error('Error:', error));
+    }
     async function Checkout_1() {
         console.log("C1 is called");
         fetch('/Checkout_1', {
