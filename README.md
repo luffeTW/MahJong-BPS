@@ -6,4 +6,5 @@ Renting system dealing with cash device transport and order process.
 Supported Devices:PS100,Modbus,XC100,K837,Godex
 
 Purchase FlowChart:
+
 ![image](https://github.com/luffeTW/MahJong-BPS/blob/main/PurchaseFlow.drawio.png)
